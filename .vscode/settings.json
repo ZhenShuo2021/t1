@@ -1,0 +1,31 @@
+{
+  // "python.defaultInterpreterPath": "/venv/bin/python3",
+  // "window.zoomLevel": 1,
+  "terminal.integrated.fontFamily": "monospace",
+  "editor.fontFamily": "MesloLGS NF",
+  "cSpell.words": [
+    "Drission",
+    "isort"
+  ],
+  "editor.fontSize": 14,
+  "editor.lineHeight": 20,
+  "extensions.ignoreRecommendations": true,
+  "files.encoding": "utf8",
+  "python.envFile": "", // DO NOT REMOVE
+  "python.analysis.typeCheckingMode": "basic",
+  // "python.analysis.extraPaths": [
+  //   "/Users/leo/Documents/projects/V2PH-Downloader/.venv/lib/python3.12/site-packages"
+  // ],
+  "python.analysis.autoImportCompletions": true,
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "never",
+      "source.organizeImports": "never"
+    }
+  },
+  "ruff.lineLength": null,
+  "ruff.organizeImports": true,
+  "ruff.lint.run": "onType"
+}

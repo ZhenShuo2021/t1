@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "v2dl",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            // "env": {
+            //     "PYTHONPATH": "${workspaceFolder}"
+            // },
+            // "envFile": "${workspaceFolder}/.env",
+            "args": [
+                "https://www.v2ph.com/album/Weekly-Big-Comic-Spirits-2016-No22-23"
+                ]
+        }
+    ]
+}

@@ -1,6 +1,5 @@
 # Custom
 .DS_Store
-.vscode
 download*
 html/*
 *temp*

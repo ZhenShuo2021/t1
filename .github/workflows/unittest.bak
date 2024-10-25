@@ -40,7 +40,7 @@ jobs:
             --no-sandbox \
             --disable-dev-shm-usage \
             --user-data-dir=$(pwd)/chrome_profile
-          
+
           if pgrep "Google Chrome" > /dev/null; then
             echo "Chrome successfully started."
           else
