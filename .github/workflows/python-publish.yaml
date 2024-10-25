@@ -1,0 +1,63 @@
+name: PyPI Publish
+
+on:
+  release:
+    types: [created]
+    
+  push:
+    tags:
+      - 'v*.*.*'
+      
+  # 手動觸發
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Choose environment to deploy'
+        required: true
+        default: 'production' 
+        type: choice
+        options:
+        - production
+        - test
+
+jobs:
+  publish:
+    name: Build and Publish to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+    
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+          
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.7.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          
+      - name: Install dependencies
+        run: poetry install --no-dev
+        
+      - name: Build package
+        run: poetry build
+        
+      - name: Publish to TestPyPI
+        if: ${{ github.event.inputs.environment == 'test' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          
+      - name: Publish to PyPI
+        if: ${{ github.event.inputs.environment == 'production' || github.event_name == 'release' || github.event_name == 'push' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
