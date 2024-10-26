@@ -1,12 +1,16 @@
 import logging
+import os
 import re
+import threading
 import time
 from pathlib import Path
+from queue import Queue
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
 from lxml import html
 
+from .config import Config
 from .const import HEADERS
 
 
@@ -88,6 +92,71 @@ class LinkParser:
         # Rebuild the full URL
         new_url = urlunparse(parsed_url._replace(query=new_query))
         return new_url
+
+
+class AlbumTracker:
+    """Download log in units of albums."""
+
+    def __init__(self, download_log: str):
+        self.album_log_path = download_log
+
+    def is_downloaded(self, album_url: str) -> bool:
+        if os.path.exists(self.album_log_path):
+            with open(self.album_log_path) as f:
+                downloaded_albums = f.read().splitlines()
+            return album_url in downloaded_albums
+        return False
+
+    def log_downloaded(self, album_url: str):
+        album_url = LinkParser.remove_page_num(album_url)
+        if not self.is_downloaded(album_url):
+            with open(self.album_log_path, "a") as f:
+                f.write(album_url + "\n")
+
+
+class DownloadService:
+    """Initialize multiple threads with a queue for downloading."""
+
+    def __init__(self, config: Config, logger: logging.Logger, num_workers: int = 1):
+        self.download_queue: Queue = Queue()
+        self.config = config
+        self.logger = logger
+        self.num_workers = num_workers  # one worker is enough, too many workers would be blocked
+        self.worker_threads: list[threading.Thread] = []
+
+    def start_workers(self):
+        """Start up multiple worker threads to listen download needs."""
+        for _ in range(self.num_workers):
+            worker = threading.Thread(target=self._download_worker, daemon=True)
+            self.worker_threads.append(worker)
+            worker.start()
+
+    def _download_worker(self):
+        """Worker function to process downloads from the queue."""
+        dest = self.config.download.download_dir
+        rate = self.config.download.rate_limit
+        while True:  # run until receiving exit signal
+            album_name, page_image_links = self.download_queue.get()  # get job from queue
+            if album_name is None:
+                break  # exit signal received
+            download_album(album_name, page_image_links, dest, rate, self.logger)
+            self.download_queue.task_done()
+
+    def add_download_task(self, album_name: str, image_links: list[tuple[str, str]]):
+        """Add task to queue."""
+        self.download_queue.put((album_name, image_links))
+
+    def wait_completion(self):
+        """Block until all tasks are done and stop all workers."""
+        self.download_queue.join()  # Block until all tasks are done.
+
+        # Signal all workers to exit
+        for _ in range(self.num_workers):
+            self.download_queue.put((None, None))
+
+        # Wait for all worker threads to finish
+        for worker in self.worker_threads:
+            worker.join()
 
 
 def download_album(
