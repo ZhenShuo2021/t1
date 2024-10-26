@@ -20,12 +20,10 @@ class BaseBot(ABC):
     @abstractmethod
     def init_driver(self) -> Any:
         """Initialize the browser driver."""
-        pass
 
     @abstractmethod
     def close_driver(self):
         """Close the browser and handle cleanup."""
-        pass
 
     def auto_page_scroll(
         self, url: str, max_retry: int = 3, page_sleep: int = 5, fast_scroll: bool = True

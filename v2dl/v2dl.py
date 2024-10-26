@@ -1,21 +1,21 @@
 import logging
 import os
 import re
-import time
 import threading
+import time
 from queue import Queue
 
 from lxml import html
 
-from .const import BASE_URL, XPATH_ALTS, XPATH_ALBUM, XPATH_ALBUM_LIST
 from .config import Config, ConfigManager, parse_arguments
+from .const import BASE_URL, XPATH_ALBUM, XPATH_ALBUM_LIST, XPATH_ALTS
 from .custom_logger import setup_logging
 from .utils import LinkParser, download_album
 from .web_bot import get_bot
 
 
 class ScrapeManager:
-    """Manage how to scrape the given URL"""
+    """Manage how to scrape the given URL."""
 
     def __init__(
         self,
@@ -47,7 +47,7 @@ class ScrapeManager:
             if "album" in self.path_parts:
                 self.scrape_album(self.url)
             elif any(part in album_list_name for part in self.path_parts):
-                self.scrape_album_list_page(self.url)
+                self.scrape_album_list(self.url)
             else:
                 raise ValueError(f"Unsupported URL type: {self.url}")
         finally:
@@ -55,38 +55,38 @@ class ScrapeManager:
                 self.download_service.wait_completion()
             self.web_bot.close_driver()
 
-    def scrape_album_list_page(self, actor_url: str):
-        """Scrape all albums in album list page"""
+    def scrape_album_list(self, actor_url: str):
+        """Scrape all albums in album list page."""
         album_links = self.link_scraper.scrape_link(actor_url, self.start_page, True)
         valid_album_links = [album_url for album_url in album_links if isinstance(album_url, str)]
-        self.logger.info(f"Found {len(valid_album_links)} albums")
+        self.logger.info("Found %d albums", len(valid_album_links))
 
         for album_url in valid_album_links:
             if self.dry_run:
-                self.logger.info(f"[DRY RUN] Album URL: {album_url}")
+                self.logger.info("[DRY RUN] Album URL: %s", album_url)
             else:
                 self.scrape_album(album_url)
 
     def scrape_album(self, album_url: str):
-        """Scrape a single album page"""
+        """Scrape a single album page."""
         if self.album_tracker.is_downloaded(album_url):
-            self.logger.info(f"Album {album_url} already downloaded, skipping.")
+            self.logger.info("Album %s already downloaded, skipping.", album_url)
             return
 
         image_links = self.link_scraper.scrape_link(album_url, self.start_page, False)
         if image_links:
             album_name = re.sub(r"\s*\d+$", "", image_links[0][1])
-            self.logger.info(f"Found {len(image_links)} images in album {album_name}")
+            self.logger.info("Found %d images in album %s", len(image_links), album_name)
 
             if self.dry_run:
                 for link, alt in image_links:
-                    self.logger.info(f"[DRY RUN] Image URL: {link}")
+                    self.logger.info("[DRY RUN] Image URL: %s", link)
             else:
                 self.album_tracker.log_downloaded(album_url)
 
 
 class LinkScraper:
-    """Scrape logic"""
+    """Scrape logic."""
 
     def __init__(self, web_bot, dry_run: bool, download_service, logger: logging.Logger):
         self.web_bot = web_bot
@@ -97,22 +97,24 @@ class LinkScraper:
     def scrape_link(
         self, url: str, start_page: int, is_album_list: bool
     ) -> list[str] | list[tuple[str, str]]:
-        """Scrape all pages after the given URL (not URLs).
+        """Scrape pages for links starting from the given URL and page number.
 
         Args:
-            url (str): URL to scrape, can be a album list page or a album page.
-            is_album_list (bool): Check if the page is a album list page.
+            url (str): Initial URL to scrape, which can be an album list or an album page.
+            start_page (int): The page number to start scraping from.
+            is_album_list (bool): Indicates if the URL is an album list page.
 
         Returns:
-            page_result (list): A list of URL if is_album_list=True. Otherwise, returns a list of
-            tuples consists of URL/filename.
+            list[str] | list[tuple[str, str]]:
+                A list of URLs if is_album_list=True; otherwise, a list of (URL, filename) tuples.
         """
         self.logger.info(
-            f"Starting to scrape {'album' if is_album_list else 'image'} links from {url}"
+            "Starting to scrape %s links from %s", "album" if is_album_list else "image", url
         )
-        page_result = []
+        page_result: list[str] | list[tuple[str, str]] = []
         page = start_page
         consecutive_page = 0
+        max_consecutive_page = 3
         alt_ctr = 0
         xpath_page_links = XPATH_ALBUM_LIST if is_album_list else XPATH_ALBUM
 
@@ -123,11 +125,11 @@ class LinkScraper:
             if tree is None:
                 break
 
-            self.logger.info(f"Fetching content from {full_url}")
+            self.logger.info("Fetching content from %s", full_url)
             page_links = tree.xpath(xpath_page_links)
             if not page_links:
                 self.logger.info(
-                    f"No more {'albums' if is_album_list else 'images'} found on page {page}"
+                    "No more %s found on page %d", "albums" if is_album_list else "images", page
                 )
                 break
 
@@ -142,7 +144,7 @@ class LinkScraper:
 
             page += 1
             consecutive_page += 1
-            if consecutive_page == 3:
+            if consecutive_page == max_consecutive_page:
                 consecutive_page = 0
                 time.sleep(15)
 
@@ -154,9 +156,9 @@ class LinkScraper:
         page_result: list[str],
         page: int,
     ):
-        """Process and collect album URLs from list page"""
+        """Process and collect album URLs from list page."""
         page_result.extend([BASE_URL + album_link for album_link in page_links])
-        self.logger.info(f"Found {len(page_links)} images on page {page}")
+        self.logger.info("Found %d images on page %d", len(page_links), page)
 
     def _process_album_image_links(
         self,
@@ -166,7 +168,7 @@ class LinkScraper:
         tree: html.HtmlElement,
         page: int,
     ):
-        """Handle image links extraction and queueing for download"""
+        """Handle image links extraction and queueing for download."""
         alts: list[str] = tree.xpath(XPATH_ALTS)
 
         if len(alts) < len(page_links):
@@ -181,7 +183,7 @@ class LinkScraper:
             album_name = self.extract_album_name(alts)
             image_links = list(zip(page_links, alts))
             self.download_service.add_download_task(album_name, image_links)  # add task to queue
-        self.logger.info(f"Found {len(page_links)} images on page {page}")
+        self.logger.info("Found %d images on page %d", len(page_links), page)
 
     @staticmethod
     def extract_album_name(alts: list[str]) -> str:
@@ -195,14 +197,14 @@ class LinkScraper:
 
 
 class AlbumTracker:
-    """Download log in units of albums"""
+    """Download log in units of albums."""
 
     def __init__(self, download_log: str):
         self.album_log_path = download_log
 
     def is_downloaded(self, album_url: str) -> bool:
         if os.path.exists(self.album_log_path):
-            with open(self.album_log_path, "r") as f:
+            with open(self.album_log_path) as f:
                 downloaded_albums = f.read().splitlines()
             return album_url in downloaded_albums
         return False
@@ -218,21 +220,21 @@ class DownloadService:
     """Initialize multiple threads with a queue for downloading."""
 
     def __init__(self, config: Config, logger: logging.Logger, num_workers: int = 1):
-        self.download_queue = Queue()
+        self.download_queue: Queue = Queue()
         self.config = config
         self.logger = logger
         self.num_workers = num_workers  # one worker is enough, too many workers would be blocked
-        self.worker_threads = []
+        self.worker_threads: list[threading.Thread] = []
 
     def start_workers(self):
-        """Start up multiple worker threads to listen download needs"""
+        """Start up multiple worker threads to listen download needs."""
         for _ in range(self.num_workers):
             worker = threading.Thread(target=self._download_worker, daemon=True)
             self.worker_threads.append(worker)
             worker.start()
 
     def _download_worker(self):
-        """Worker function to process downloads from the queue"""
+        """Worker function to process downloads from the queue."""
         dest = self.config.download.download_dir
         rate = self.config.download.rate_limit
         while True:  # run until receiving exit signal
@@ -243,7 +245,7 @@ class DownloadService:
             self.download_queue.task_done()
 
     def add_download_task(self, album_name: str, image_links: list[tuple[str, str]]):
-        """Add task to queue"""
+        """Add task to queue."""
         self.download_queue.put((album_name, image_links))
 
     def wait_completion(self):

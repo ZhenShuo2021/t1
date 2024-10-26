@@ -1,12 +1,13 @@
-import pytest
+import logging
 import os
-from v2dl.v2dl import ScrapeManager
+import time
+
+import pytest
+
 from v2dl.config import ConfigManager
 from v2dl.custom_logger import setup_logging
+from v2dl.v2dl import ScrapeManager
 from v2dl.web_bot import get_bot
-
-import logging
-import time
 
 os.environ["V2PH_USERNAME"] = "naf02905@inohm.com"  # temp account for testing
 os.environ["V2PH_PASSWORD"] = "VFc8v/Mqny"  # temp account for testing

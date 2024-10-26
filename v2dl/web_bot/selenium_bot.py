@@ -1,27 +1,22 @@
 import os
-import sys
-
-import time
 import random
 import subprocess
-
-from selenium import webdriver
-from selenium.webdriver.remote.webdriver import WebDriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import (
-    TimeoutException,
-    WebDriverException,
-    NoSuchElementException,
-)
+import sys
+import time
 from subprocess import Popen
 
-from .base import BaseBot, BaseBehavior, BaseScroll
+from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.support import expected_conditions as EC  # noqa: N812
+from selenium.webdriver.support.ui import WebDriverWait
+
 from ..const import SELENIUM_AGENT
+from .base import BaseBehavior, BaseBot, BaseScroll
 
 
 class SeleniumBot(BaseBot):
@@ -64,7 +59,7 @@ class SeleniumBot(BaseBot):
         try:
             self.driver = webdriver.Chrome(service=Service(), options=options)
         except Exception as e:
-            self.logger.critical(f"無法啟動 Selenium WebDriver: {e}")
+            self.logger.error("無法啟動 Selenium WebDriver: %s", e)
             sys.exit("無法啟動 Selenium WebDriver")
 
         # width = random.randint(1024, 1920)
@@ -80,8 +75,7 @@ class SeleniumBot(BaseBot):
     def auto_page_scroll(
         self, url: str, max_retry: int = 3, page_sleep: int = 5, fast_scroll: bool = False
     ) -> str:
-        """
-        Scroll page automatically with retries and Cloudflare challenge handle.
+        """Scroll page automatically with retries and Cloudflare challenge handle.
 
         The main function of this class.
 
@@ -100,11 +94,11 @@ class SeleniumBot(BaseBot):
                 self.driver.get(url)
                 SelBehavior.random_sleep(0.1, 0.5)
 
-                if not self.handle_redirection_fail(url, max_retry, 5):
+                if not self.handle_redirection_fail(url, max_retry, page_sleep):
                     self.logger.error(
-                        f"Unable to solve redirection fail. Attempt {attempt + 1}/{max_retry}"
+                        "Reconnection fail for URL %s. Please check your network status.", url
                     )
-                    continue
+                    break
 
                 if self.cloudflare.handle_simple_block(attempt, max_retry):
                     continue
@@ -113,7 +107,7 @@ class SeleniumBot(BaseBot):
                     EC.presence_of_element_located((By.CSS_SELECTOR, "div.album-photo.my-2"))
                 )
 
-                # 主業務
+                # main business
                 self.handle_login()
                 self.scroller.scroll_to_bottom()
                 SelBehavior.random_sleep(5, 15)
@@ -121,22 +115,23 @@ class SeleniumBot(BaseBot):
                 response = self.driver.page_source
                 break
 
-            except TimeoutException:
-                self.logger.warning(
-                    f"Timeout occurred. Retrying... Attempt {attempt + 1}/{max_retry}"
-                )
-            except WebDriverException as e:
-                self.logger.error(
-                    f"WebDriver error occurred: {e}. Retrying... Attempt {attempt + 1}/{max_retry}"
+            except Exception as e:
+                self.logger.exception(
+                    "Request failed for URL %s - Attempt %d/%d. Error: %s",
+                    url,
+                    attempt + 1,
+                    max_retry,
+                    e,
                 )
 
             self.logger.debug("捲動結束，暫停作業避免封鎖。")
             SelBehavior.random_sleep(page_sleep, page_sleep + 5)
 
         if not response:
-            error_msg = f"Failed to retrieve URL after {max_retry} attempts: '{url}'"
-            response = error_msg
+            error_template = "Failed to retrieve URL after {} attempts: '{}'"
+            error_msg = error_template.format(max_retry, url)
             self.logger.error(error_msg)
+            return error_msg
         return response
 
     def handle_redirection_fail(self, url: str, max_retry: int, sleep_time: int) -> bool:
@@ -144,7 +139,7 @@ class SeleniumBot(BaseBot):
             return True
         retry = 1
         while retry <= max_retry:
-            self.logger.error(f"Connection failed - Attempt {retry + 1}/{max_retry}")
+            self.logger.error("Connection failed - Attempt %d/%d", retry, max_retry)
             SelBehavior.random_sleep(sleep_time, sleep_time + 5 * random.uniform(1, retry * 5))
 
             if self.cloudflare.handle_simple_block(retry, max_retry):
@@ -193,7 +188,7 @@ class SeleniumBot(BaseBot):
                 try:
                     self.cloudflare.handle_cloudflare_recaptcha()
                 except Exception as e:
-                    self.logger.error(f"Error handling Cloudflare reCAPTCHA: {e}")
+                    self.logger.exception("Error handling Cloudflare reCAPTCHA: %s", e)
 
                 try:
                     login_button = WebDriverWait(self.driver, 5).until(
@@ -214,11 +209,11 @@ class SeleniumBot(BaseBot):
                     self.check_login_errors()
 
             except NoSuchElementException as e:
-                self.logger.error(f"Login form element not found: {str(e)}")
+                self.logger.error("Login form element not found: %s", e)
             except TimeoutException as e:
-                self.logger.error(f"Timeout waiting for element: {str(e)}")
+                self.logger.error("Timeout waiting for element: %s", e)
             except Exception as e:
-                self.logger.error(f"Unexpected error during login: {str(e)}")
+                self.logger.error("Unexpected error during login: %s", e)
         else:
             success = True
         if not success:
@@ -229,7 +224,7 @@ class SeleniumBot(BaseBot):
         error_messages = self.driver.find_elements(By.CLASS_NAME, "alert-danger")
         if error_messages:
             for message in error_messages:
-                self.logger.error(f"Login error: {message.text}")
+                self.logger.error("Login error: %s", message.text)
         else:
             self.logger.warning(
                 "No specific error message found. Login might have failed for unknown reasons."
@@ -237,8 +232,8 @@ class SeleniumBot(BaseBot):
 
 
 class SelCloudflareHandler:
-    """
-    Handles Cloudflare protection detection and bypass attempts.
+    """Handles Cloudflare protection detection and bypass attempts.
+
     Includes methods for dealing with various Cloudflare challenges.
     """
 
@@ -247,18 +242,23 @@ class SelCloudflareHandler:
         self.logger = logger
 
     def handle_simple_block(self, attempt: int, retries: int) -> bool:
-        """check and handle Cloudflare challenge"""
+        """check and handle Cloudflare challenge."""
         blocked = False
         if self.is_simple_blocked():
             self.logger.info(
-                f"Detected Cloudflare challenge, attempting to solve... Attempt {attempt + 1}/{retries}"
+                "Detected Cloudflare challenge, attempting to solve... Attempt %d/%d",
+                attempt + 1,
+                retries,
             )
             self.handle_cloudflare_turnstile()
             blocked = True
         return blocked
 
     def handle_hard_block(self) -> bool:
-        """Check, log critical, and return whether blocked or not (This is a cloudflare WAF block)"""
+        """Check, log critical, and return whether blocked or not.
+
+        This is a cloudflare WAF full page block.
+        """
         blocked = False
         if self.is_hard_block():
             self.logger.critical("Hard block detected by Cloudflare - Unable to proceed")
@@ -266,7 +266,6 @@ class SelCloudflareHandler:
         return blocked
 
     def is_simple_blocked(self) -> bool:
-        """check if blocked by Cloudflare"""
         title_check = any(text in self.driver.title for text in ["請稍候...", "Just a moment..."])
         page_source_check = "Checking your" in self.driver.page_source
         return title_check or page_source_check
@@ -280,9 +279,10 @@ class SelCloudflareHandler:
     def handle_cloudflare_turnstile(self):
         try:
             iframe = WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, "//iframe[contains(@src, 'challenges.cloudflare.com')]")
-                )
+                EC.presence_of_element_located((
+                    By.XPATH,
+                    "//iframe[contains(@src, 'challenges.cloudflare.com')]",
+                ))
             )
             self.driver.switch_to.frame(iframe)
 
@@ -314,7 +314,7 @@ class SelCloudflareHandler:
             SelBehavior.random_sleep(3, 5)
         except (TimeoutException, NoSuchElementException) as e:
             self.logger.warning(
-                f"reCAPTCHA checkbox or verify button not found or unable to interact: {e}"
+                "reCAPTCHA checkbox or verify button not found or unable to interact: %s", e
             )
 
     def solve_image_captcha(self):
@@ -389,14 +389,14 @@ class SelScroll(BaseScroll):
             if self.continuous_scroll_count >= self.max_continuous_scrolls:
                 pause_time = random.uniform(3, 7)
                 self.logger.debug(
-                    f"連續捲動 {self.continuous_scroll_count} 次，暫停 {pause_time:.2f} 秒"
+                    "連續捲動 %d 次，暫停 %.2f 秒", self.continuous_scroll_count, pause_time
                 )
                 time.sleep(pause_time)
                 self.continuous_scroll_count = 0
                 self.max_continuous_scrolls = random.randint(3, 7)
 
         if scroll_attempts == max_attempts:
-            self.logger.info(f"捲動結束，達到最大嘗試次數 ({max_attempts})，可能未完全捲動到底")
+            self.logger.info("達到最大嘗試次數 (%d)，捲動結束，可能未完全捲動到底", max_attempts)
         else:
             self.logger.info("頁面捲動完成")
 
@@ -414,9 +414,9 @@ class SelScroll(BaseScroll):
                 self.config.download.max_scroll_length,
             )
             target_position = current_position + scroll_length
-            self.logger.debug(f"嘗試向下捲動 {scroll_length} 像素")
+            self.logger.debug("嘗試向下捲動 %d 像素", scroll_length)
             actual_position = self.safe_scroll(target_position)
-            self.logger.debug(f"實際捲動到 {actual_position} 像素")
+            self.logger.debug("實際捲動到 %d 像素", actual_position)
             time.sleep(random.uniform(*BaseBehavior.pause_time))
         elif action == "scroll_up":
             scroll_length = random.randint(
@@ -424,18 +424,18 @@ class SelScroll(BaseScroll):
                 self.config.download.max_scroll_length,
             )
             target_position = max(0, current_position - scroll_length)
-            self.logger.debug(f"嘗試向上捲動 {scroll_length} 像素")
+            self.logger.debug("嘗試向上捲動 %d 像素", scroll_length)
             actual_position = self.safe_scroll(target_position)
-            self.logger.debug(f"實際捲動到 {actual_position} 像素")
+            self.logger.debug("實際捲動到 %d 像素", actual_position)
         elif action == "pause":
             pause_time = random.uniform(1, 3)
-            self.logger.debug(f"暫停 {pause_time:.2f} 秒")
+            self.logger.debug("暫停 %.2f 秒", pause_time)
             time.sleep(pause_time)
         elif action == "jump":
             jump_position = current_position + random.randint(100, 500)
-            self.logger.debug(f"嘗試跳轉到位置 {jump_position}")
+            self.logger.debug("嘗試跳轉到位置 %d", jump_position)
             actual_position = self.safe_scroll(jump_position)
-            self.logger.debug(f"實際跳轉到 {actual_position} 像素")
+            self.logger.debug("實際跳轉到 %d", actual_position)
 
     def safe_scroll(self, target_position):
         current_position = self.get_scroll_position()
@@ -452,7 +452,7 @@ class SelScroll(BaseScroll):
             new_position = self.get_scroll_position()
             if new_position == current_position:
                 self.logger.debug(
-                    f"無法繼續捲動，目標: {target_position}，當前: {current_position}"
+                    "無法繼續捲動，目標: %d，當前: %d", target_position, current_position
                 )
                 break
             current_position = new_position

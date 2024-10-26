@@ -1,13 +1,15 @@
 # Do NOT import utils/file_utils
 import logging
 import os
+from typing import ClassVar
+
 from colorama import Fore, Style, init
 
 init()
 
 
 class CustomFormatter(logging.Formatter):
-    COLORS = {
+    COLORS: ClassVar[dict] = {
         logging.DEBUG: Fore.LIGHTBLACK_EX,
         logging.INFO: Fore.WHITE,
         logging.WARNING: Fore.YELLOW,
@@ -36,9 +38,8 @@ class CustomFormatter(logging.Formatter):
 
 
 def setup_logging(level, log_path, no_archive=False):
-    """
-    level: [logging.LOGLEVEL]
-    args: [bool], no_archive
+    """level: [logging.LOGLEVEL]
+    args: [bool], no_archive..
     """
     # Clear any existing handlers
     for handler in logging.root.handlers[:]:

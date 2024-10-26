@@ -1,17 +1,17 @@
 import logging
 import re
-import requests
 import time
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
+import requests
 from lxml import html
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 from .const import HEADERS
 
 
 class LinkParser:
-    """Tool class parses URL"""
+    """Tool class parses URL."""
 
     @staticmethod
     def parse_input_url(url):
@@ -29,12 +29,12 @@ class LinkParser:
         try:
             return html.fromstring(html_content)
         except Exception as e:
-            logger.error(f"Error parsing HTML content: {e}")
+            logger.error("Error parsing HTML content: %s", e)
             return None
 
     @staticmethod
     def get_max_page(tree: html.HtmlElement) -> int:
-        """Parse pagination count"""
+        """Parse pagination count."""
         page_links = tree.xpath(
             '//li[@class="page-item"]/a[@class="page-link" and string-length(text()) <= 2]/@href'
         )
@@ -73,7 +73,7 @@ class LinkParser:
 
     @staticmethod
     def remove_page_num(url: str) -> str:
-        """remove ?page=d or &page=d from URL"""
+        """remove ?page=d or &page=d from URL."""
         # Parse the URL
         parsed_url = urlparse(url)
         query_params = parse_qs(parsed_url.query)
@@ -92,18 +92,18 @@ class LinkParser:
 
 def download_album(
     album_name: str,
-    image_links: str,
+    image_links: list[tuple[str, str]],
     destination: str,
     rate_limit: int,
     logger: logging.Logger,
 ):
-    """
-    Download images from image links, save them to a folder named after the album, and skips files
-    that already exist.
+    """Download images from image links.
+
+    Save images to a folder named after the album, existing files would be skipped.
 
     Args:
         album_name (str): Name of album folder.
-        image_links (str): List of tuples with image URLs and corresponding alt text for filenames.
+        image_links (list[tuple[str, str]]): List of tuples with image URLs and corresponding alt text for filenames.
         destination (str): Download parent directory of album folder.
         rate_limit (int): Download rate limits.
         logger (logging.Logger): Logger.
@@ -116,7 +116,7 @@ def download_album(
         file_path = folder / f"{filename}.jpg"
 
         if file_path.exists():
-            logger.info(f"File already exists: '{file_path}'")
+            logger.info("File already exists: '%s'", file_path)
             continue
 
         # requests module will log download url
@@ -125,26 +125,24 @@ def download_album(
 
 
 def download_image(url: str, save_path: Path, rate_limit: int, logger: logging.Logger) -> bool:
-    """
-    Error control subfunction for download files.
+    """Error control subfunction for download files.
 
     Return `True` for successful download, else `False`.
     """
     try:
         download(url, save_path, rate_limit)
-        logger.info(f"Downloaded: '{save_path}'")
+        logger.info("Downloaded: '%s'", save_path)
         return True
     except requests.exceptions.HTTPError as http_err:
-        logger.error(f"HTTP error occurred: {http_err}")
+        logger.error("HTTP error occurred: %s", http_err)
         return False
-    except Exception as err:
-        logger.error(f"An error occurred: {err}")
+    except Exception as e:
+        logger.error("An error occurred: %s", e)
         return False
 
 
 def download(url: str, save_path: Path, speed_limit_kbps: int = 1536) -> None:
-    """
-    Download with speed limit function.
+    """Download with speed limit function.
 
     Default speed limit is 1536 KBps (1.5 MBps).
     """

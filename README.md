@@ -19,10 +19,10 @@ v2dl <url>
 
 ### 嘗試第一次下載
 ```sh
-# 有村架純《私の好きな町。》
+# 單一相簿：有村架純《私の好きな町。》
 v2dl "https://www.v2ph.com/album/Weekly-Young-Jump-2015-No15"
 
-# 乃木板46
+# 相簿列表：乃木板46
 v2dl "https://www.v2ph.com/category/nogizaka46"
 ```
 

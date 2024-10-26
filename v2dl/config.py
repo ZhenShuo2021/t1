@@ -53,7 +53,7 @@ class ConfigManager:
         config_data = DEFAULT_CONFIG
 
         # Load environment variables
-        if custom_env_path.exists:
+        if custom_env_path.exists():
             load_dotenv(custom_env_path)
 
         # Load and merge configurations
@@ -85,13 +85,13 @@ class ConfigManager:
         )
 
     def resolve_path(self, path, base_dir):
-        """Resolve '~', add path with base_dir if input is not absolute path"""
+        """Resolve '~', add path with base_dir if input is not absolute path."""
         path = os.path.expanduser(path)
         return os.path.join(base_dir, path) if not os.path.isabs(path) else path
 
     @staticmethod
     def get_system_config_dir() -> Path:
-        """Return the config directory"""
+        """Return the config directory."""
         if platform.system() == "Windows":
             base = os.getenv("APPDATA", "")
         else:
@@ -118,13 +118,15 @@ class ConfigManager:
         return exec_path
 
     @staticmethod
-    def _merge_config(base: dict[str, Any], custom: dict[str, Any]) -> None:
+    def _merge_config(base: dict[str, Any], custom: dict[str, Any]) -> dict:
         """Recursively merge custom config into base config."""
         for key, value in custom.items():
             if isinstance(value, dict) and key in base:
                 ConfigManager._merge_config(base[key], value)
             else:
                 base[key] = value
+        return base
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Web scraper for albums and images.")

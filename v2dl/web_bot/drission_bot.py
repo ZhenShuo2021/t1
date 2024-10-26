@@ -1,13 +1,13 @@
 import os
+import random
 import sys
 import time
-import random
 
-from DrissionPage import ChromiumPage, ChromiumOptions
-from DrissionPage.common import By, wait_until
+from DrissionPage import ChromiumOptions, ChromiumPage
+from DrissionPage.common import wait_until
 from DrissionPage.errors import ElementNotFoundError, WaitTimeoutError
 
-from .base import BaseBot, BaseBehavior, BaseScroll
+from .base import BaseBehavior, BaseBot, BaseScroll
 
 
 class DrissionBot(BaseBot):
@@ -44,16 +44,16 @@ class DrissionBot(BaseBot):
     def auto_page_scroll(
         self, url: str, max_retry: int = 3, page_sleep: int = 5, fast_scroll: bool = False
     ) -> str:
-        """
-        Scroll page automatically with retries and Cloudflare challenge handle.
+        """Scroll page automatically with retries and Cloudflare challenge handle.
 
         Args:
-            url: Target URL
-            max_retry: Maximum number of retry attempts
-            fast_scroll: Whether to use fast scrolling behavior
+            url (str): Target URL.
+            max_retry (int): Maximum number of retry attempts.
+            page_sleep (int): Sleep time after finishing scrolling each page.
+            fast_scroll (bool): Whether to use fast scrolling behavior.
 
         Returns:
-            str: Page HTML content or error message
+            response (str): Page HTML content or error message
         """
         response: str = ""
 
@@ -65,11 +65,11 @@ class DrissionBot(BaseBot):
                 self.page.get(url)
 
                 # handle page redirection fail
-                if not self.page.states.is_alive:
-                    page_alive = self.handle_redirection_fail(url, max_retry, page_sleep)
-                    if not page_alive:
-                        self.logger.error("Reconnection fail. Please check your network status.")
-                        break
+                if not self.handle_redirection_fail(url, max_retry, page_sleep):
+                    self.logger.error(
+                        "Reconnection fail for URL %s. Please check your network status.", url
+                    )
+                    break
 
                 # handle challenges
                 # self.page.wait.load_start()
@@ -88,14 +88,18 @@ class DrissionBot(BaseBot):
                 break
 
             except Exception as e:
-                self.logger.error(
-                    f"Request failed - Attempt {attempt + 1}/{max_retry}. Error: {str(e)}",
-                    exc_info=True,
+                self.logger.exception(
+                    "Request failed for URL %s - Attempt %d/%d. Error: %s",
+                    url,
+                    attempt + 1,
+                    max_retry,
+                    e,
                 )
                 self.human.random_sleep(page_sleep, page_sleep + 5)
 
         if not response:
-            error_msg = f"Failed to retrieve URL after {max_retry} attempts: '{url}'"
+            error_template = "Failed to retrieve URL after {} attempts: '{}'"
+            error_msg = error_template.format(max_retry, url)
             self.logger.error(error_msg)
             return error_msg
         return response
@@ -105,7 +109,9 @@ class DrissionBot(BaseBot):
             return True
         retry = 1
         while retry <= max_retry:
-            self.logger.error(f"Connection failed - Attempt {retry + 1}/{max_retry}")
+            self.logger.error(
+                "Redirection handle failed for URL %s - Attempt %d/%d.", url, retry, max_retry
+            )
             self.human.random_sleep(sleep_time, sleep_time + 5 * random.uniform(1, retry * 5))
 
             if self.cloudflare.handle_simple_block(retry, max_retry):
@@ -159,11 +165,11 @@ class DrissionBot(BaseBot):
                     return
 
             except ElementNotFoundError as e:
-                self.logger.error(f"Login form element not found: {str(e)}")
+                self.logger.error("Login form element not found: %s", e)
             except WaitTimeoutError as e:
-                self.logger.error(f"Timeout waiting for element: {str(e)}")
+                self.logger.error("Timeout waiting for element: %s", e)
             except Exception as e:
-                self.logger.error(f"Unexpected error during login: {str(e)}")
+                self.logger.error("Unexpected error during login: %s", e)
 
         else:
             success = True
@@ -175,7 +181,7 @@ class DrissionBot(BaseBot):
     def check_login_errors(self):
         error_message = self.page.ele("@class=alert-danger")
         if error_message:
-            self.logger.error(f"Login error message: {error_message.text}")
+            self.logger.error("Login error: %s", error_message.text)
         else:
             self.logger.warning(
                 "No specific error message found - Login failed for unknown reasons"
@@ -196,8 +202,8 @@ class DrissionBot(BaseBot):
 
 
 class DriCloudflareHandler:
-    """
-    Handles Cloudflare protection detection and bypass attempts.
+    """Handles Cloudflare protection detection and bypass attempts.
+
     Includes methods for dealing with various Cloudflare challenges.
     """
 
@@ -206,15 +212,20 @@ class DriCloudflareHandler:
         self.logger = logger
 
     def handle_simple_block(self, attempt: int, retries: int) -> bool:
-        """Check, handle, and return whether blocked or not"""
+        """Check, handle, and return whether blocked or not."""
         blocked = False
         if self.is_simple_blocked():
-            self.logger.info(f"Cloudflare challenge detected - Attempt {attempt + 1}/{retries}")
+            self.logger.info(
+                "Cloudflare challenge detected - Solve attempt %d/%d", attempt + 1, retries
+            )
             blocked = self.handle_cloudflare_turnstile()
         return blocked
 
     def handle_hard_block(self) -> bool:
-        """Check, log critical, and return whether blocked or not (This is a cloudflare WAF block)"""
+        """Check, log critical, and return whether blocked or not.
+
+        This is a cloudflare WAF full page block.
+        """
         blocked = False
         if self.is_hard_block():
             self.logger.critical("Hard block detected by Cloudflare - Unable to proceed")
@@ -233,20 +244,20 @@ class DriCloudflareHandler:
         return is_blocked
 
     def handle_cloudflare_turnstile(self) -> bool:
-        """鬥志鬥勇失敗"""
+        """鬥志鬥勇失敗."""
         blocked = False
         try:
             container = self.page.ele(".cloudflare-container")
             turnstile_box = container.ele(".turnstile-box")
             turnstile_div = turnstile_box.ele("#cf-turnstile")
-            pos = turnstile_div.rect.click_point()
+            pos = turnstile_div.rect.click_point  # type: ignore
             self.page.wait(2)
             # pyautogui.moveTo(pos[0], pos[1] + 61, duration=0.5)
             # pyautogui.click()
             self.page.wait(3)
             blocked = True
         except Exception as e:
-            self.logger.error(f"Failed to solve new Cloudflare turnstile: {str(e)}", exc_info=True)
+            self.logger.exception("Failed to solve new Cloudflare turnstile: %s", e)
         return blocked
 
     def random_sleep(self, min_time, max_time):
@@ -291,6 +302,7 @@ class DriScroll(BaseScroll):
         scroll_attempts = 0
         max_attempts = 45
         same_position_count = 0
+        max_same_position_count = 0
         last_position = 0
 
         while scroll_attempts < max_attempts:
@@ -301,9 +313,9 @@ class DriScroll(BaseScroll):
 
             if current_position == last_position:
                 same_position_count += 1
-                if same_position_count >= 3:
+                if same_position_count >= max_same_position_count:
                     self.logger.debug(
-                        f"連續三次偵測到相同位置，停止捲動。總共捲動 {scroll_attempts} 次"
+                        "連續三次偵測到相同位置，停止捲動。總共捲動 %d 次", scroll_attempts
                     )
                     break
             else:
@@ -319,14 +331,14 @@ class DriScroll(BaseScroll):
             if self.continuous_scroll_count >= self.max_continuous_scrolls:
                 pause_time = random.uniform(3, 7)
                 self.logger.debug(
-                    f"連續捲動 {self.continuous_scroll_count} 次，暫停 {pause_time:.2f} 秒"
+                    "連續捲動 %d 次，暫停 %.2f 秒", self.continuous_scroll_count, pause_time
                 )
                 time.sleep(pause_time)
                 self.continuous_scroll_count = 0
                 self.max_continuous_scrolls = random.randint(3, 7)
 
         if scroll_attempts == max_attempts:
-            self.logger.info(f"捲動結束，達到最大嘗試次數 ({max_attempts})，可能未完全捲動到底")
+            self.logger.info("達到最大嘗試次數 (%d)，捲動結束，可能未完全捲動到底", max_attempts)
         else:
             self.logger.info("頁面捲動完成")
 
@@ -341,7 +353,7 @@ class DriScroll(BaseScroll):
                 self.config.download.min_scroll_length,
                 self.config.download.max_scroll_length,
             )
-            self.logger.debug(f"嘗試向下捲動 {scroll_length} 像素")
+            self.logger.debug("嘗試向下捲動 %d 像素", scroll_length)
             self.page.scroll.down(pixel=scroll_length)
             time.sleep(random.uniform(*BaseBehavior.pause_time))
         elif action == "scroll_up":
@@ -349,11 +361,11 @@ class DriScroll(BaseScroll):
                 self.config.download.min_scroll_length,
                 self.config.download.max_scroll_length,
             )
-            self.logger.debug(f"嘗試向上捲動 {scroll_length} 像素")
+            self.logger.debug("嘗試向上捲動 %d 像素", scroll_length)
             self.page.scroll.up(pixel=scroll_length)
         elif action == "pause":
             pause_time = random.uniform(1, 3)
-            self.logger.debug(f"暫停 {pause_time:.2f} 秒")
+            self.logger.debug("暫停 %.2f 秒", pause_time)
             time.sleep(pause_time)
         elif action == "jump":
             self.logger.debug("跳轉到頁面底部")
@@ -361,7 +373,7 @@ class DriScroll(BaseScroll):
             # self.page.scroll.to_see("@class=album-photo my-2")
 
     def safe_scroll(self, target_position):
-        """DrissionPage does not need safe_scroll"""
+        """DrissionPage does not need safe_scroll."""
         current_position = self.get_scroll_position()
         step = random.uniform(
             self.config.download.min_scroll_step,
@@ -374,7 +386,7 @@ class DriScroll(BaseScroll):
             new_position = self.get_scroll_position()
             if new_position == current_position:
                 self.logger.debug(
-                    f"無法繼續捲動，目標: {target_position}，當前: {current_position}"
+                    "無法繼續捲動，目標: %d，當前: %d", target_position, current_position
                 )
                 break
             current_position = new_position
