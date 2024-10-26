@@ -35,15 +35,21 @@ class LinkScraper:
             ),
         }
 
-    def scrape_album_list(self, url: str, start_page: int) -> list[str]:
+    def scrape_album_list(self, url: str, start_page: int, **kwargs) -> list[str]:
         """Convenience method for album list scraping."""
-        return self.scrape_link(url, start_page, ScrapingType.ALBUM_LIST)
+        return self._scrape_link(url, start_page, ScrapingType.ALBUM_LIST, **kwargs)
 
-    def scrape_album_images(self, url: str, start_page: int) -> list[tuple[str, str]]:
+    def scrape_album_images(self, url: str, start_page: int, **kwargs) -> list[tuple[str, str]]:
         """Convenience method for album images scraping."""
-        return self.scrape_link(url, start_page, ScrapingType.ALBUM_IMAGE)
+        return self._scrape_link(url, start_page, ScrapingType.ALBUM_IMAGE, **kwargs)
 
-    def scrape_link(self, url: str, start_page: int, scraping_type: ScrapingType) -> list[T]:
+    def _scrape_link(
+        self,
+        url: str,
+        start_page: int,
+        scraping_type: ScrapingType,
+        **kwargs,
+    ) -> list[T]:
         """Scrape pages for links using the appropriate strategy."""
         strategy = self.strategies[scraping_type]
         self.logger.info(
@@ -52,8 +58,6 @@ class LinkScraper:
 
         page_result: list[T] = []
         page = start_page
-        consecutive_page = 0
-        max_consecutive_page = 3
 
         while True:
             full_url = LinkParser.add_page_num(url, page)
@@ -63,9 +67,11 @@ class LinkScraper:
             if tree is None:
                 break
 
+            # log entering a page
             self.logger.info("Fetching content from %s", full_url)
             page_links = tree.xpath(strategy.get_xpath())
 
+            # log no images
             if not page_links:
                 self.logger.info(
                     "No more %s found on page %d", "albums" if scraping_type else "images", page
@@ -75,16 +81,24 @@ class LinkScraper:
             strategy.process_page_links(page_links, page_result, tree, page)
 
             if page >= LinkParser.get_max_page(tree):
-                self.logger.info("Reached last page, stopping")
+                self.logger.info("Reach last page, stopping")
                 break
 
-            page += 1
-            consecutive_page += 1
-            if consecutive_page == max_consecutive_page:
-                consecutive_page = 0
-                time.sleep(15)
+            self._handle_pagination(page, **kwargs)
 
         return page_result
+
+    def _handle_pagination(
+        self,
+        current_page: int,
+        max_consecutive_page: int = 3,
+        consecutive_sleep: int = 15,
+    ) -> int:
+        """Handle pagination logic including sleep for consecutive pages."""
+        next_page = current_page + 1
+        if next_page % max_consecutive_page == 0:
+            time.sleep(consecutive_sleep)
+        return next_page
 
 
 class ScrapingStrategy(Generic[T], ABC):
