@@ -4,8 +4,12 @@
   "terminal.integrated.fontFamily": "monospace",
   "editor.fontFamily": "MesloLGS NF",
   "cSpell.words": [
+    "automator",
     "Drission",
-    "isort"
+    "isort",
+    "lxml",
+    "Mqny",
+    "pyautogui"
   ],
   "editor.fontSize": 14,
   "editor.lineHeight": 20,
