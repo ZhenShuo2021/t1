@@ -6,6 +6,7 @@ html/*
 v2dl_chrome_profile*
 chromedriver
 profile
+safe_house
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
