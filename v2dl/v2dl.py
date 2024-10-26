@@ -1,15 +1,25 @@
 import logging
 import re
+from typing import ClassVar
 
-from .config import Config, ConfigManager, parse_arguments
+from .config import Config, ConfigManager, RuntimeConfig, parse_arguments
 from .custom_logger import setup_logging
-from .scrapper import LinkScraper, ScrapingType
+from .error import ScrapeError
+from .scrapper import LinkScraper
 from .utils import AlbumTracker, DownloadService, LinkParser
 from .web_bot import get_bot
 
 
 class ScrapeManager:
     """Manage how to scrape the given URL."""
+
+    URL_HANDLERS: ClassVar = {
+        "album": "scrape_album",
+        "actor": "scrape_album_list",
+        "company": "scrape_album_list",
+        "category": "scrape_album_list",
+        "country": "scrape_album_list",
+    }
 
     def __init__(self, url: str, web_bot, dry_run: bool, config: Config, logger: logging.Logger):
         self.url = url
@@ -29,14 +39,12 @@ class ScrapeManager:
             self.download_service.start_workers()
 
     def start_scraping(self):
-        album_list_name = {"actor", "company", "category", "country"}
+        """Start scraping based on URL type."""
         try:
-            if "album" in self.path_parts:
-                self.scrape_album(self.url)
-            elif any(part in album_list_name for part in self.path_parts):
-                self.scrape_album_list(self.url)
-            else:
-                raise ValueError(f"Unsupported URL type: {self.url}")
+            handler = self._get_handler_method()
+            handler(self.url)
+        except ScrapeError as e:
+            self.logger.exception("Scrapping error '%s'", e)
         finally:
             if not self.dry_run:
                 self.download_service.wait_completion()
@@ -44,9 +52,7 @@ class ScrapeManager:
 
     def scrape_album_list(self, actor_url: str):
         """Scrape all albums in album list page."""
-        album_links = self.link_scraper.scrape_link(
-            actor_url, self.start_page, ScrapingType.ALBUM_LIST
-        )
+        album_links = self.link_scraper.scrape_album_list(actor_url, self.start_page)
         valid_album_links = [album_url for album_url in album_links if isinstance(album_url, str)]
         self.logger.info("Found %d albums", len(valid_album_links))
 
@@ -73,13 +79,38 @@ class ScrapeManager:
             else:
                 self.album_tracker.log_downloaded(album_url)
 
+    def _get_handler_method(self):
+        """Get the appropriate handler method based on URL path."""
+        for part in self.path_parts:
+            if part in self.URL_HANDLERS:
+                return getattr(self, self.URL_HANDLERS[part])
+        raise ValueError(f"Unsupported URL type: {self.url}")
+
+    def __enter__(self):
+        if not self.dry_run:
+            self.download_service.start_workers()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if not self.dry_run:
+            self.download_service.wait_completion()
+        self.web_bot.close_driver()
+
 
 def main():
     args, log_level = parse_arguments()
-    config = ConfigManager().load()
-    setup_logging(log_level, log_path=config.paths.system_log)
+    app_config = ConfigManager().load()
+    runtime_config = RuntimeConfig(
+        url=args.url,
+        dry_run=args.dry_run,
+        bot_type=args.bot_type,
+        terminate=args.terminate,
+        log_level=log_level,
+    )
+
+    setup_logging(runtime_config.log_level, log_path=app_config.paths.system_log)
     logger = logging.getLogger(__name__)
 
-    web_bot = get_bot(args.bot_type, config, args.terminate, logger)
-    scraper = ScrapeManager(args.url, web_bot, args.dry_run, config, logger)
+    web_bot = get_bot(runtime_config.bot_type, app_config, runtime_config.terminate, logger)
+    scraper = ScrapeManager(runtime_config.url, web_bot, runtime_config.dry_run, app_config, logger)
     scraper.start_scraping()

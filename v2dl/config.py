@@ -13,6 +13,15 @@ from .const import DEFAULT_CONFIG
 
 
 @dataclass
+class RuntimeConfig:
+    url: str
+    dry_run: bool
+    bot_type: str
+    terminate: bool
+    log_level: int
+
+
+@dataclass
 class DownloadConfig:
     min_scroll_length: int
     max_scroll_length: int
