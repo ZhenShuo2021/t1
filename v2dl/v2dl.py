@@ -3,7 +3,10 @@ import os
 import re
 import threading
 import time
+from abc import ABC, abstractmethod
+from enum import Enum
 from queue import Queue
+from typing import Generic, TypeAlias, TypeVar
 
 from lxml import html
 
@@ -13,18 +16,22 @@ from .custom_logger import setup_logging
 from .utils import LinkParser, download_album
 from .web_bot import get_bot
 
+AlbumLink: TypeAlias = str
+ImageLink: TypeAlias = tuple[str, str]
+T = TypeVar("T", AlbumLink, ImageLink)
+
+
+class ScrapingType(Enum):
+    """Available methods for page scaping. An alternative IDE friendly way of dict."""
+
+    ALBUM_LIST = "album_list"
+    ALBUM_IMAGE = "album_image"
+
 
 class ScrapeManager:
     """Manage how to scrape the given URL."""
 
-    def __init__(
-        self,
-        url: str,
-        web_bot,
-        dry_run: bool,
-        config: Config,
-        logger: logging.Logger,
-    ):
+    def __init__(self, url: str, web_bot, dry_run: bool, config: Config, logger: logging.Logger):
         self.url = url
         self.path_parts, self.start_page = LinkParser.parse_input_url(url)
 
@@ -57,7 +64,9 @@ class ScrapeManager:
 
     def scrape_album_list(self, actor_url: str):
         """Scrape all albums in album list page."""
-        album_links = self.link_scraper.scrape_link(actor_url, self.start_page, True)
+        album_links = self.link_scraper.scrape_link(
+            actor_url, self.start_page, ScrapingType.ALBUM_LIST
+        )
         valid_album_links = [album_url for album_url in album_links if isinstance(album_url, str)]
         self.logger.info("Found %d albums", len(valid_album_links))
 
@@ -73,7 +82,7 @@ class ScrapeManager:
             self.logger.info("Album %s already downloaded, skipping.", album_url)
             return
 
-        image_links = self.link_scraper.scrape_link(album_url, self.start_page, False)
+        image_links = self.link_scraper.scrape_album_images(album_url, self.start_page)
         if image_links:
             album_name = re.sub(r"\s*\d+$", "", image_links[0][1])
             self.logger.info("Found %d images in album %s", len(image_links), album_name)
@@ -86,57 +95,56 @@ class ScrapeManager:
 
 
 class LinkScraper:
-    """Scrape logic."""
+    """Main scraper class using strategy pattern."""
 
     def __init__(self, web_bot, dry_run: bool, download_service, logger: logging.Logger):
         self.web_bot = web_bot
-        self.dry_run = dry_run
-        self.download_service: DownloadService = download_service
         self.logger = logger
+        self.strategies: dict[ScrapingType, ScrapingStrategy] = {
+            ScrapingType.ALBUM_LIST: AlbumListStrategy(web_bot, download_service, logger),
+            ScrapingType.ALBUM_IMAGE: AlbumImageStrategy(
+                web_bot, download_service, logger, dry_run
+            ),
+        }
 
-    def scrape_link(
-        self, url: str, start_page: int, is_album_list: bool
-    ) -> list[str] | list[tuple[str, str]]:
-        """Scrape pages for links starting from the given URL and page number.
+    def scrape_album_list(self, url: str, start_page: int) -> list[str]:
+        """Convenience method for album list scraping."""
+        return self.scrape_link(url, start_page, ScrapingType.ALBUM_LIST)
 
-        Args:
-            url (str): Initial URL to scrape, which can be an album list or an album page.
-            start_page (int): The page number to start scraping from.
-            is_album_list (bool): Indicates if the URL is an album list page.
+    def scrape_album_images(self, url: str, start_page: int) -> list[tuple[str, str]]:
+        """Convenience method for album images scraping."""
+        return self.scrape_link(url, start_page, ScrapingType.ALBUM_IMAGE)
 
-        Returns:
-            list[str] | list[tuple[str, str]]:
-                A list of URLs if is_album_list=True; otherwise, a list of (URL, filename) tuples.
-        """
+    def scrape_link(self, url: str, start_page: int, scraping_type: ScrapingType) -> list[T]:
+        """Scrape pages for links using the appropriate strategy."""
+        strategy = self.strategies[scraping_type]
         self.logger.info(
-            "Starting to scrape %s links from %s", "album" if is_album_list else "image", url
+            "Starting to scrape %s links from %s", "album" if scraping_type else "image", url
         )
-        page_result: list[str] | list[tuple[str, str]] = []
+
+        page_result: list[T] = []
         page = start_page
         consecutive_page = 0
         max_consecutive_page = 3
-        alt_ctr = 0
-        xpath_page_links = XPATH_ALBUM_LIST if is_album_list else XPATH_ALBUM
 
         while True:
             full_url = LinkParser.add_page_num(url, page)
             html_content = self.web_bot.auto_page_scroll(full_url)
             tree = LinkParser.parse_html(html_content, self.logger)
+
             if tree is None:
                 break
 
             self.logger.info("Fetching content from %s", full_url)
-            page_links = tree.xpath(xpath_page_links)
+            page_links = tree.xpath(strategy.get_xpath())
+
             if not page_links:
                 self.logger.info(
-                    "No more %s found on page %d", "albums" if is_album_list else "images", page
+                    "No more %s found on page %d", "albums" if scraping_type else "images", page
                 )
                 break
 
-            if is_album_list:
-                self._process_album_list_links(page_links, page_result, page)
-            else:
-                self._process_album_image_links(page_links, page_result, alt_ctr, tree, page)
+            strategy.process_page_links(page_links, page_result, tree, page)
 
             if page >= LinkParser.get_max_page(tree):
                 self.logger.info("Reached last page, stopping")
@@ -150,48 +158,92 @@ class LinkScraper:
 
         return page_result
 
-    def _process_album_list_links(
+
+class ScrapingStrategy(Generic[T], ABC):
+    """Abstract base class for different scraping strategies."""
+
+    def __init__(self, web_bot, download_service, logger: logging.Logger):
+        self.web_bot = web_bot
+        self.download_service = download_service
+        self.logger = logger
+
+    @abstractmethod
+    def get_xpath(self) -> str:
+        """Return xpath for the specific strategy."""
+
+    @abstractmethod
+    def process_page_links(
+        self,
+        page_links: list[str],
+        page_result: list[T],
+        tree: html.HtmlElement,
+        page: int,
+        **kwargs,
+    ) -> None:
+        """Process links found on the page."""
+
+
+class AlbumListStrategy(ScrapingStrategy):
+    """Strategy for scraping album list pages."""
+
+    def get_xpath(self) -> str:
+        return XPATH_ALBUM_LIST
+
+    def process_page_links(
         self,
         page_links: list[str],
         page_result: list[str],
+        tree: html.HtmlElement,
         page: int,
-    ):
-        """Process and collect album URLs from list page."""
+        **kwargs,
+    ) -> None:
         page_result.extend([BASE_URL + album_link for album_link in page_links])
-        self.logger.info("Found %d images on page %d", len(page_links), page)
+        self.logger.info("Found %d albums on page %d", len(page_links), page)
 
-    def _process_album_image_links(
+
+class AlbumImageStrategy(ScrapingStrategy):
+    """Strategy for scraping album image pages."""
+
+    def __init__(self, web_bot, download_service, logger: logging.Logger, dry_run: bool):
+        super().__init__(web_bot, download_service, logger)
+        self.dry_run = dry_run
+        self.alt_counter = 0
+
+    def get_xpath(self) -> str:
+        return XPATH_ALBUM
+
+    def process_page_links(
         self,
         page_links: list[str],
         page_result: list[tuple[str, str]],
-        alt_ctr: int,
         tree: html.HtmlElement,
         page: int,
-    ):
-        """Handle image links extraction and queueing for download."""
+        **kwargs,
+    ) -> None:
         alts: list[str] = tree.xpath(XPATH_ALTS)
 
+        # Handle missing alt texts
         if len(alts) < len(page_links):
-            missing_alts = [str(i + alt_ctr) for i in range(len(page_links) - len(alts))]
+            missing_alts = [str(i + self.alt_counter) for i in range(len(page_links) - len(alts))]
             alts.extend(missing_alts)
-            alt_ctr += len(missing_alts)
+            self.alt_counter += len(missing_alts)
 
         page_result.extend(zip(page_links, alts))
 
-        # Download file
+        # Handle downloads if not in dry run mode
         if not self.dry_run:
-            album_name = self.extract_album_name(alts)
+            album_name = self._extract_album_name(alts)
             image_links = list(zip(page_links, alts))
-            self.download_service.add_download_task(album_name, image_links)  # add task to queue
+            self.download_service.add_download_task(album_name, image_links)
+
         self.logger.info("Found %d images on page %d", len(page_links), page)
 
     @staticmethod
-    def extract_album_name(alts: list[str]) -> str:
-        # Find the first non-digits element
+    def _extract_album_name(alts: list[str]) -> str:
         album_name = next((alt for alt in alts if not alt.isdigit()), None)
-        if album_name:  # remove postfix digits and spaces
+        if album_name:
             album_name = re.sub(r"\s*\d*$", "", album_name).strip()
-        if not album_name:  # empty string check
+        if not album_name:
             album_name = BASE_URL.rstrip("/").split("/")[-1]
         return album_name
 

@@ -1,5 +1,7 @@
 # ============== Default User Preference ==============
-DEFAULT_CONFIG = {
+from typing import Any
+
+DEFAULT_CONFIG: dict[str, dict[str, Any]] = {
     "download": {
         "min_scroll_length": 500,
         "max_scroll_length": 1000,

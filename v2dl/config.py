@@ -42,6 +42,12 @@ class Config:
 
 
 class ConfigManager:
+    """Load and process configs based on user platform.
+
+    The DEFAULT_CONFIG is a nested dict, after processing, the ConfigManager.load() returns a
+    Config dataclass consists of DownloadConfig, PathConfig, ChromeConfig dataclasses.
+    """
+
     def load(self) -> Config:
         """Load configuration from files and environment."""
         system_config_dir = ConfigManager.get_system_config_dir()
@@ -50,7 +56,7 @@ class ConfigManager:
         custom_config_path = system_config_dir / "config.yaml"
         custom_env_path = system_config_dir / ".env"
 
-        config_data = DEFAULT_CONFIG
+        config = DEFAULT_CONFIG
 
         # Load environment variables
         if custom_env_path.exists():
@@ -61,26 +67,26 @@ class ConfigManager:
             with open(custom_config_path) as f:
                 custom_config = yaml.safe_load(f)
                 if custom_config:  # not empty
-                    ConfigManager._merge_config(config_data, custom_config)
+                    config = ConfigManager._merge_config(config, custom_config)
 
         # Check file paths
-        for key, path in config_data["paths"].items():
-            config_data["paths"][key] = self.resolve_path(path, system_config_dir)
+        for key, path in config["paths"].items():
+            config["paths"][key] = self.resolve_path(path, system_config_dir)
 
-        config_data["chrome"]["profile_path"] = self.resolve_path(
-            config_data["chrome"]["profile_path"], system_config_dir
+        config["chrome"]["profile_path"] = self.resolve_path(
+            config["chrome"]["profile_path"], system_config_dir
         )
 
         # Check download_dir path
-        download_dir = config_data["download"].get("download_dir", "").strip()
-        config_data["download"]["download_dir"] = self._get_download_dir(download_dir)
+        download_dir = config["download"].get("download_dir", "").strip()
+        config["download"]["download_dir"] = self._get_download_dir(download_dir)
 
         return Config(
-            download=DownloadConfig(**config_data["download"]),
-            paths=PathConfig(**config_data["paths"]),
+            download=DownloadConfig(**config["download"]),
+            paths=PathConfig(**config["paths"]),
             chrome=ChromeConfig(
-                exec_path=ConfigManager._get_chrome_exec_path(config_data),
-                profile_path=config_data["chrome"]["profile_path"],
+                exec_path=ConfigManager._get_chrome_exec_path(config),
+                profile_path=config["chrome"]["profile_path"],
             ),
         )
 
