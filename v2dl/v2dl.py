@@ -3,8 +3,8 @@ import re
 from typing import ClassVar
 
 from .config import Config, ConfigManager, RuntimeConfig, parse_arguments
-from .custom_logger import setup_logging
 from .error import ScrapeError
+from .logger import setup_logging
 from .scrapper import LinkScraper
 from .utils import AlbumTracker, DownloadService, LinkParser
 from .web_bot import get_bot

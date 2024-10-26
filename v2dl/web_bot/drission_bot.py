@@ -304,6 +304,7 @@ class DriScroll(BaseScroll):
         same_position_count = 0
         max_same_position_count = 0
         last_position = 0
+        time.sleep(3)
 
         while scroll_attempts < max_attempts:
             scroll_attempts += 1
