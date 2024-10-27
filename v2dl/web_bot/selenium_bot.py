@@ -48,10 +48,10 @@ class SeleniumBot(BaseBot):
             "--disable-infobars",
             "--disable-extensions",
             "--disable-dev-shm-usage",
-            "--disable-blink-features",
-            "--disable-blink-features=AutomationControlled",
+            # "--disable-blink-features",
+            # "--disable-blink-features=AutomationControlled",
             "--start-maximized",
-            "--ignore-certificate-errors",
+            # "--ignore-certificate-errors",
         ]
         self.chrome_process = subprocess.Popen(subprocess_cmd)
 
@@ -103,12 +103,13 @@ class SeleniumBot(BaseBot):
                 if self.cloudflare.handle_simple_block(attempt, max_retry):
                     continue
 
-                WebDriverWait(self.driver, 5).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "div.album-photo.my-2"))
-                )
+                # WebDriverWait(self.driver, 5).until(
+                #     EC.presence_of_element_located((By.CSS_SELECTOR, "div.album-photo.my-2"))
+                # )
 
                 # main business
                 self.handle_login()
+                self.driver.execute_script("document.body.style.zoom='75%'")
                 self.scroller.scroll_to_bottom()
                 SelBehavior.random_sleep(5, 15)
 

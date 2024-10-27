@@ -36,6 +36,9 @@ class ScrapeManager:
         self.link_scraper = LinkScraper(web_bot, dry_run, self.download_service, logger)
         self.album_tracker = AlbumTracker(config.paths.download_log)
 
+        if not self.dry_run:
+            self.download_service.start_workers()
+
     def start_scraping(self):
         """Start scraping based on URL type."""
         try:
