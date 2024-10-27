@@ -86,7 +86,7 @@ class LinkScraper:
                 self.logger.info("Reach last page, stopping")
                 break
 
-            self._handle_pagination(page, **kwargs)
+            page = self._handle_pagination(page, **kwargs)
 
         return page_result
 
