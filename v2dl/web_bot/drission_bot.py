@@ -35,7 +35,6 @@ class DrissionBot(BaseBot):
         self.page.set.scroll.wait_complete(on_off=True)
 
         self.scroll = DriScroll(self.page, self.config, self.logger)
-        self.human = DriBehavior()
 
     def close_driver(self):
         if self.close_browser:
@@ -63,6 +62,7 @@ class DrissionBot(BaseBot):
         for attempt in range(max_retry):
             try:
                 self.page.get(url)
+                DriBehavior.random_sleep(1, 3)
 
                 # handle page redirection fail
                 if not self.handle_redirection_fail(url, max_retry, page_sleep):
@@ -95,7 +95,7 @@ class DrissionBot(BaseBot):
                     max_retry,
                     e,
                 )
-                self.human.random_sleep(page_sleep, page_sleep + 5)
+                DriBehavior.random_sleep(page_sleep, page_sleep + 5)
 
         if not response:
             error_template = "Failed to retrieve URL after {} attempts: '{}'"
@@ -112,7 +112,7 @@ class DrissionBot(BaseBot):
             self.logger.error(
                 "Redirection handle failed for URL %s - Attempt %d/%d.", url, retry, max_retry
             )
-            self.human.random_sleep(sleep_time, sleep_time + 5 * random.uniform(1, retry * 5))
+            DriBehavior.random_sleep(sleep_time, sleep_time + 5 * random.uniform(1, retry * 5))
 
             if self.cloudflare.handle_simple_block(retry, max_retry):
                 self.logger.critical("Failed to solve Cloudflare turnstile challenge")
@@ -154,7 +154,7 @@ class DrissionBot(BaseBot):
                 )
                 login_button.click()
 
-                self.human.random_sleep(3, 5)
+                DriBehavior.random_sleep(3, 5)
 
                 if "用戶登錄" not in self.page.html:
                     self.logger.info("Login successful")
@@ -190,7 +190,7 @@ class DrissionBot(BaseBot):
     def human_like_type(self, element, text):
         for char in text:
             element.input(char)
-            self.human.random_sleep(0.001, 0.2)
+            DriBehavior.random_sleep(0.001, 0.2)
 
     def scroll_page(self):
         scroll_length = random.randint(
