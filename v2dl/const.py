@@ -5,7 +5,7 @@ DEFAULT_CONFIG: dict[str, dict[str, Any]] = {
     "download": {
         "min_scroll_length": 500,
         "max_scroll_length": 1000,
-        "min_scroll_step": 50,
+        "min_scroll_step": 150,
         "max_scroll_step": 250,
         "rate_limit": 400,
         "download_dir": "v2dl",

@@ -54,7 +54,6 @@ class DrissionBot(BaseBot):
         Returns:
             response (str): Page HTML content or error message
         """
-        response: str = ""
 
         # page_sleep_time: tuple[int, int] = (20, 40) if fast_scroll else (5, 15)
         scroll_down = self.page.scroll.to_bottom if fast_scroll else self.scroll.scroll_to_bottom
@@ -79,11 +78,11 @@ class DrissionBot(BaseBot):
 
                 # main business
                 self.handle_login()
+                self.page.run_js("document.body.style.zoom='75%'")
                 scroll_down()
-                response = self.page.html
 
                 # Sleep to avoid Cloudflare blocking
-                self.logger.debug("捲動結束，暫停作業避免封鎖。")
+                self.logger.debug("捲動結束，暫停作業避免封鎖")
                 DriBehavior.random_sleep(page_sleep, page_sleep + 5)
                 break
 
@@ -97,12 +96,12 @@ class DrissionBot(BaseBot):
                 )
                 DriBehavior.random_sleep(page_sleep, page_sleep + 5)
 
-        if not response:
+        if not self.page.html:
             error_template = "Failed to retrieve URL after {} attempts: '{}'"
             error_msg = error_template.format(max_retry, url)
             self.logger.error(error_msg)
             return error_msg
-        return response
+        return self.page.html
 
     def handle_redirection_fail(self, url: str, max_retry: int, sleep_time: int) -> bool:
         if self.page.url == url and self.page.states.is_alive:
@@ -136,14 +135,14 @@ class DrissionBot(BaseBot):
 
                 # self.handle_cloudflare_recaptcha()
 
-                BaseBehavior.random_sleep(0.1, 0.3)
+                DriBehavior.random_sleep(0.1, 0.3)
                 email_field = self.page("#email")
                 password_field = self.page("#password")
 
-                self.human_like_type(email_field, self.email)
-                BaseBehavior.random_sleep(0.01, 0.3)
-                self.human_like_type(password_field, self.password)
-                BaseBehavior.random_sleep(0.01, 0.5)
+                DriBehavior.human_like_type(email_field, self.email)
+                DriBehavior.random_sleep(0.01, 0.3)
+                DriBehavior.human_like_type(password_field, self.password)
+                DriBehavior.random_sleep(0.01, 0.5)
 
                 # Already checked by default
                 # remember_checkbox = self.page('#remember')
@@ -186,19 +185,6 @@ class DrissionBot(BaseBot):
             self.logger.warning(
                 "No specific error message found - Login failed for unknown reasons"
             )
-
-    def human_like_type(self, element, text):
-        for char in text:
-            element.input(char)
-            DriBehavior.random_sleep(0.001, 0.2)
-
-    def scroll_page(self):
-        scroll_length = random.randint(
-            self.config.download.min_scroll_length,
-            self.config.download.max_scroll_length,
-        )
-        self.page.scroll(pixel=scroll_length)
-        # self.page.execute_script(f"window.scrollBy(0, {scroll_length});")
 
 
 class DriCloudflareHandler:
@@ -302,14 +288,14 @@ class DriScroll(BaseScroll):
         scroll_attempts = 0
         max_attempts = 45
         same_position_count = 0
-        max_same_position_count = 0
+        max_same_position_count = 3
         last_position = 0
-        time.sleep(3)
+        scrolled_up = False
 
         while scroll_attempts < max_attempts:
             scroll_attempts += 1
 
-            current_position = self.get_scroll_position()
+            current_position = self.get_current_position()
             page_height = self.get_page_height()
 
             if current_position == last_position:
@@ -324,45 +310,52 @@ class DriScroll(BaseScroll):
 
             last_position = current_position
 
-            self.perform_scroll_action()
+            scrolled_up = self.perform_scroll_action(scrolled_up)
 
             self.wait_for_content_load()
 
-            self.continuous_scroll_count += 1
-            if self.continuous_scroll_count >= self.max_continuous_scrolls:
+            self.successive_scroll_count += 1
+            if self.successive_scroll_count >= self.max_successive_scrolls:
                 pause_time = random.uniform(3, 7)
                 self.logger.debug(
-                    "連續捲動 %d 次，暫停 %.2f 秒", self.continuous_scroll_count, pause_time
+                    "連續捲動 %d 次，暫停 %.2f 秒", self.successive_scroll_count, pause_time
                 )
                 time.sleep(pause_time)
-                self.continuous_scroll_count = 0
-                self.max_continuous_scrolls = random.randint(3, 7)
+                scrolled_up = False
+                self.successive_scroll_count = 0
+                self.max_successive_scrolls = random.randint(3, 7)
 
         if scroll_attempts == max_attempts:
             self.logger.info("達到最大嘗試次數 (%d)，捲動結束，可能未完全捲動到底", max_attempts)
         else:
             self.logger.info("頁面捲動完成")
 
-    def perform_scroll_action(self):
-        action = random.choices(
-            ["scroll_down", "scroll_up", "pause", "jump"],
-            weights=[0.7, 0.1, 0.1, 0.001],
-        )[0]
+    def perform_scroll_action(self, scrolled_up):
+        while True:
+            action = random.choices(
+                ["scroll_down", "scroll_up", "pause", "jump"],
+                weights=[0.9, 0.1, 0.1, 0.01],
+            )[0]
+
+            if (
+                action != "scroll_up" or not scrolled_up
+            ):  # 連續捲動時，只要往上捲動過一次就不要再選擇往上
+                break
 
         if action == "scroll_down":
             scroll_length = random.randint(
-                self.config.download.min_scroll_length,
-                self.config.download.max_scroll_length,
+                self.config.download.min_scroll_step,
+                self.config.download.max_scroll_step,
             )
-            self.logger.debug("嘗試向下捲動 %d 像素", scroll_length)
+            self.logger.debug("嘗試向下捲動 %d", scroll_length)
             self.page.scroll.down(pixel=scroll_length)
             time.sleep(random.uniform(*BaseBehavior.pause_time))
         elif action == "scroll_up":
             scroll_length = random.randint(
-                self.config.download.min_scroll_length,
-                self.config.download.max_scroll_length,
+                self.config.download.min_scroll_step,
+                self.config.download.max_scroll_step,
             )
-            self.logger.debug("嘗試向上捲動 %d 像素", scroll_length)
+            self.logger.debug("嘗試向上捲動 %d", scroll_length)
             self.page.scroll.up(pixel=scroll_length)
         elif action == "pause":
             pause_time = random.uniform(1, 3)
@@ -373,33 +366,38 @@ class DriScroll(BaseScroll):
             self.page.scroll.to_bottom()
             # self.page.scroll.to_see("@class=album-photo my-2")
 
-    def safe_scroll(self, target_position):
-        """DrissionPage does not need safe_scroll."""
-        current_position = self.get_scroll_position()
-        step = random.uniform(
-            self.config.download.min_scroll_step,
-            self.config.download.max_scroll_step,
-        )
+        return action == scrolled_up
 
-        while abs(current_position - target_position) > step:
-            self.page.run_js(f"window.scrollTo(0, {current_position + step});")
-            time.sleep(random.uniform(0.005, 0.1))
-            new_position = self.get_scroll_position()
-            if new_position == current_position:
-                self.logger.debug(
-                    "無法繼續捲動，目標: %d，當前: %d", target_position, current_position
-                )
-                break
-            current_position = new_position
-        self.page.run_js(f"window.scrollTo(0, {target_position});")
-        return self.get_scroll_position()
+    # def safe_scroll(self, target_position):
+    #     """DrissionPage does not need safe_scroll."""
+    #     current_position = self.get_current_position()
+    #     step = random.uniform(
+    #         self.config.download.min_scroll_step,
+    #         self.config.download.max_scroll_step,
+    #     )
 
-    def get_scroll_position(self):
-        page_location = self.page.rect.page_location
-        return page_location[1]
+    #     while abs(current_position - target_position) > step:
+    #         self.page.run_js(f"window.scrollTo(0, {current_position + step});")
+    #         time.sleep(random.uniform(0.005, 0.1))
+    #         new_position = self.get_current_position()
+    #         if new_position == current_position:
+    #             self.logger.debug(
+    #                 "無法繼續捲動，目標: %d，當前: %d", target_position, current_position
+    #             )
+    #             break
+    #         current_position = new_position
+    #     self.page.run_js(f"window.scrollTo(0, {target_position});")
+    #     return self.get_current_position()
+
+    def get_current_position(self):
+        page_location = self.page.run_js("return window.pageYOffset;")
+        self.logger.debug("目前垂直位置 %d", page_location)
+        return page_location
 
     def get_page_height(self):
-        return self.page.rect.size[1]
+        page_height = self.page.run_js("return document.body.scrollHeight;")
+        # self.logger.debug("頁面總高度 %d", page_height)
+        return page_height
 
     def wait_for_content_load(self):
         try:

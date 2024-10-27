@@ -124,7 +124,7 @@ class SeleniumBot(BaseBot):
                     e,
                 )
 
-            self.logger.debug("捲動結束，暫停作業避免封鎖。")
+            self.logger.debug("捲動結束，暫停作業避免封鎖")
             SelBehavior.random_sleep(page_sleep, page_sleep + 5)
 
         if not response:
@@ -171,12 +171,12 @@ class SeleniumBot(BaseBot):
                 SelBehavior.human_like_mouse_movement(self.driver, email_field)
                 SelBehavior.human_like_click(self.driver, email_field)
                 SelBehavior.human_like_type(email_field, self.email)
-                BaseBehavior.random_sleep(0.01, 0.3)
+                SelBehavior.random_sleep(0.01, 0.3)
 
                 SelBehavior.human_like_mouse_movement(self.driver, password_field)
                 SelBehavior.human_like_click(self.driver, email_field)
                 SelBehavior.human_like_type(password_field, self.password)
-                BaseBehavior.random_sleep(0.01, 0.5)
+                SelBehavior.random_sleep(0.01, 0.5)
 
                 # try:
                 #     remember_checkbox = self.driver.find_element(By.ID, "remember")
@@ -385,15 +385,15 @@ class SelScroll(BaseScroll):
 
             self.wait_for_content_load()
 
-            self.continuous_scroll_count += 1
-            if self.continuous_scroll_count >= self.max_continuous_scrolls:
+            self.successive_scroll_count += 1
+            if self.successive_scroll_count >= self.max_successive_scrolls:
                 pause_time = random.uniform(3, 7)
                 self.logger.debug(
-                    "連續捲動 %d 次，暫停 %.2f 秒", self.continuous_scroll_count, pause_time
+                    "連續捲動 %d 次，暫停 %.2f 秒", self.successive_scroll_count, pause_time
                 )
                 time.sleep(pause_time)
-                self.continuous_scroll_count = 0
-                self.max_continuous_scrolls = random.randint(3, 7)
+                self.successive_scroll_count = 0
+                self.max_successive_scrolls = random.randint(3, 7)
 
         if scroll_attempts == max_attempts:
             self.logger.info("達到最大嘗試次數 (%d)，捲動結束，可能未完全捲動到底", max_attempts)

@@ -58,5 +58,5 @@ class BaseScroll:
         self.logger = logger
         self.scroll_position = 0
         self.last_content_height = 0
-        self.continuous_scroll_count = 0
-        self.max_continuous_scrolls = random.randint(5, 10)
+        self.successive_scroll_count = 0
+        self.max_successive_scrolls = random.randint(5, 10)
