@@ -23,19 +23,20 @@ class ScrapeManager:
         "country": "scrape_album_list",
     }
 
-    def __init__(self, url: str, web_bot, dry_run: bool, config: Config, logger: logging.Logger):
-        self.url = url
-        self.path_parts, self.start_page = LinkParser.parse_input_url(url)
+    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
+        self.runtime_config = runtime_config
+        self.config = base_config
 
+        self.url = runtime_config.url
         self.web_bot = web_bot
-        self.dry_run = dry_run
-        self.config = config
-        self.logger = logger
+        self.dry_run = runtime_config.dry_run
+        self.logger = runtime_config.logger
 
         # 初始化
-        self.download_service: ThreadingService = ThreadingService(logger)
-        self.link_scraper = LinkScraper(config, web_bot, dry_run, self.download_service, logger)
-        self.album_tracker = AlbumTracker(config.paths.download_log)
+        self.path_parts, self.start_page = LinkParser.parse_input_url(runtime_config.url)
+        self.download_service: ThreadingService = runtime_config.download_service
+        self.link_scraper = LinkScraper(runtime_config, base_config, web_bot)
+        self.album_tracker = AlbumTracker(base_config.paths.download_log)
 
         if not self.dry_run:
             self.download_service.start_workers()
@@ -102,17 +103,21 @@ class ScrapeManager:
 def main():
     args, log_level = parse_arguments()
     app_config = ConfigManager(DEFAULT_CONFIG).load()
+
+    setup_logging(log_level, log_path=app_config.paths.system_log)
+    logger = logging.getLogger(__name__)
+    download_service: ThreadingService = ThreadingService(logger)
+
     runtime_config = RuntimeConfig(
         url=args.url,
-        dry_run=args.dry_run,
         bot_type=args.bot_type,
         terminate=args.terminate,
+        download_service=download_service,
+        dry_run=args.dry_run,
+        logger=logger,
         log_level=log_level,
     )
 
-    setup_logging(runtime_config.log_level, log_path=app_config.paths.system_log)
-    logger = logging.getLogger(__name__)
-
-    web_bot = get_bot(runtime_config.bot_type, app_config, runtime_config.terminate, logger)
-    scraper = ScrapeManager(runtime_config.url, web_bot, runtime_config.dry_run, app_config, logger)
+    web_bot = get_bot(runtime_config, app_config)
+    scraper = ScrapeManager(runtime_config, app_config, web_bot)
     scraper.start_scraping()

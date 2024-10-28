@@ -13,9 +13,11 @@ from dotenv import load_dotenv
 @dataclass
 class RuntimeConfig:
     url: str
-    dry_run: bool
     bot_type: str
     terminate: bool
+    download_service: Any
+    dry_run: bool
+    logger: Any
     log_level: int
 
 

@@ -4,14 +4,16 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any
 
+from ..config import Config, RuntimeConfig
+
 
 class BaseBot(ABC):
     """Abstract base class for bots, defining shared behaviors."""
 
-    def __init__(self, config, close_browser, logger):
-        self.config = config
-        self.close_browser = close_browser
-        self.logger = logger
+    def __init__(self, runtime_config: RuntimeConfig, base_config: Config):
+        self.config = base_config
+        self.close_browser = runtime_config.terminate
+        self.logger = runtime_config.logger
         self.email = os.getenv("V2PH_USERNAME")
         self.password = os.getenv("V2PH_PASSWORD")
 

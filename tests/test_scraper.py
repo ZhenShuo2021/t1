@@ -1,12 +1,13 @@
 import logging
 import os
-import time
+import threading
 
 import pytest
 
-from v2dl.config import ConfigManager
+from v2dl.config import ConfigManager, RuntimeConfig
 from v2dl.const import DEFAULT_CONFIG
 from v2dl.logger import setup_logging
+from v2dl.utils import ThreadingService
 from v2dl.v2dl import ScrapeManager
 from v2dl.web_bot import get_bot
 
@@ -26,9 +27,7 @@ def setup_test_env(tmp_path):
     bot_type = BOT
     dry_run = False
     terminate = True
-
-    logger = logging.getLogger("test_logger")
-    logger.setLevel(logging.INFO)
+    log_level = logging.INFO
 
     # def patched_join(*args):
     #     if args and args[0] == "download":
@@ -37,36 +36,43 @@ def setup_test_env(tmp_path):
 
     # monkeypatch.setattr("os.path.join", patched_join)
 
+    logger = logging.getLogger("test_logger")
+
     config = ConfigManager(DEFAULT_CONFIG).load()
     config.paths.download_log = tmp_path / "download.log"
     config.download.download_dir = tmp_path / "Downloads"
+    config.download.rate_limit = 1000
+    config.download.min_scroll_step = config.download.min_scroll_length * 4
+    config.download.max_scroll_step = config.download.min_scroll_length * 4 + 1
 
-    setup_logging(logging.INFO, log_path=config.paths.system_log)
-    web_bot = get_bot(bot_type, config, terminate, logger)
-    scraper = ScrapeManager(test_url, web_bot, dry_run, config, logger)
+    download_service: ThreadingService = ThreadingService(logger)
+
+    runtime_config = RuntimeConfig(
+        url=test_url,
+        bot_type=bot_type,
+        terminate=terminate,
+        download_service=download_service,
+        dry_run=dry_run,
+        logger=logger,
+        log_level=log_level,
+    )
+
+    setup_logging(log_level, log_path=config.paths.system_log)
+    web_bot = get_bot(runtime_config, config)
+    scraper = ScrapeManager(runtime_config, config, web_bot)
 
     # scraper.config.download.download_dir = str(test_download_dir)
     return scraper, scraper.config.download.download_dir
 
 
 def test_download(setup_test_env):
-    timeout = 60
-    counter = 0
+    timeout = 30
     scraper, test_download_dir = setup_test_env
 
-    scraper.start_scraping()
-    start_time = time.time()
-    while True:
-        counter += 1
-        if time.time() - start_time > timeout or counter > timeout:
-            break
-        time.sleep(1)
+    thread = threading.Thread(target=scraper.start_scraping)
+    thread.start()
+    thread.join(timeout)
 
-    print("****************************************")
-    print(time.time() - start_time)
-    print(test_download_dir)
-    print(os.listdir(test_download_dir)[0])
-    print("****************************************")
     downloaded_files = os.path.join(test_download_dir, os.listdir(test_download_dir)[0])
     assert len(downloaded_files) > 0, "No success downloads"
 

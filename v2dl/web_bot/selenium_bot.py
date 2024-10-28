@@ -20,8 +20,8 @@ from .base import BaseBehavior, BaseBot, BaseScroll
 
 
 class SeleniumBot(BaseBot):
-    def __init__(self, config, close_browser, logger):
-        super().__init__(config, close_browser, logger)
+    def __init__(self, runtime_config, base_config):
+        super().__init__(runtime_config, base_config)
         self.init_driver()
         self.scroller = SelScroll(self.driver, self.config, self.logger)
         self.cloudflare = SelCloudflareHandler(self.driver, self.logger)

@@ -4,12 +4,17 @@ from .drission_bot import DrissionBot
 from .selenium_bot import SeleniumBot
 
 
-def get_bot(bot_type: str, config, close_browser, logger):
+def get_bot(runtime_config, config):
     bot_classes = {"selenium": SeleniumBot, "drission": DrissionBot}
+
+    bot_type = runtime_config.bot_type
+    close_browser = runtime_config.terminate
+    logger = runtime_config.logger
+
     if bot_type not in bot_classes:
         raise ValueError(f"Unsupported automator type: {bot_type}")
 
-    bot = bot_classes[bot_type](config, close_browser, logger)
+    bot = bot_classes[bot_type](runtime_config, config)
 
     if bot.new_profile:
         init_new_profile(bot)

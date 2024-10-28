@@ -11,9 +11,9 @@ from .base import BaseBehavior, BaseBot, BaseScroll
 
 
 class DrissionBot(BaseBot):
-    def __init__(self, config, close_browser, logger):
-        super().__init__(config, close_browser, logger)
-        self.config = config
+    def __init__(self, runtime_config, base_config):
+        super().__init__(runtime_config, base_config)
+        self.config = base_config
         self.init_driver()
         self.cloudflare = DriCloudflareHandler(self.page, self.logger)
 

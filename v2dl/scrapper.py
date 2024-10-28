@@ -1,4 +1,3 @@
-import logging
 import re
 import time
 from abc import ABC, abstractmethod
@@ -6,9 +5,9 @@ from typing import ClassVar, Generic, TypeAlias, TypeVar
 
 from lxml import html
 
-from .config import Config
+from .config import Config, RuntimeConfig
 from .const import BASE_URL, XPATH_ALBUM, XPATH_ALBUM_LIST, XPATH_ALTS
-from .utils import LinkParser, ThreadingService, threading_download_job
+from .utils import LinkParser, threading_download_job
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str
@@ -28,22 +27,13 @@ class LinkScraper:
         "ALBUM_IMAGE": "album_image",
     }
 
-    def __init__(
-        self,
-        config: Config,
-        web_bot,
-        dry_run: bool,
-        download_service: ThreadingService,
-        logger: logging.Logger,
-    ):
+    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
         self.web_bot = web_bot
-        self.logger = logger
+        self.logger = runtime_config.logger
         self.strategies: dict[str, ScrapingStrategy] = {
-            self.SCRAPE_TYPE["ALBUM_LIST"]: AlbumListStrategy(
-                config, web_bot, download_service, logger
-            ),
+            self.SCRAPE_TYPE["ALBUM_LIST"]: AlbumListStrategy(runtime_config, base_config, web_bot),
             self.SCRAPE_TYPE["ALBUM_IMAGE"]: AlbumImageStrategy(
-                config, web_bot, download_service, logger, dry_run
+                runtime_config, base_config, web_bot
             ),
         }
 
@@ -116,11 +106,11 @@ class LinkScraper:
 class ScrapingStrategy(Generic[LinkType], ABC):
     """Abstract base class for different scraping strategies."""
 
-    def __init__(self, config, web_bot, download_service, logger: logging.Logger):
-        self.config = config
+    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
+        self.config = base_config
         self.web_bot = web_bot
-        self.download_service = download_service
-        self.logger = logger
+        self.download_service = runtime_config.download_service
+        self.logger = runtime_config.logger
 
     @abstractmethod
     def get_xpath(self) -> str:
@@ -159,16 +149,9 @@ class AlbumListStrategy(ScrapingStrategy[AlbumLink]):
 class AlbumImageStrategy(ScrapingStrategy[ImageLink]):
     """Strategy for scraping album image pages."""
 
-    def __init__(
-        self,
-        config: Config,
-        web_bot,
-        download_service: ThreadingService,
-        logger: logging.Logger,
-        dry_run: bool,
-    ):
-        super().__init__(config, web_bot, download_service, logger)
-        self.dry_run = dry_run
+    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
+        super().__init__(runtime_config, base_config, web_bot)
+        self.dry_run = runtime_config.dry_run
         self.alt_counter = 0
 
     def get_xpath(self) -> str:
