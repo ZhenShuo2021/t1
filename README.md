@@ -50,13 +50,48 @@ v2dl "https://www.v2ph.com/category/nogizaka46"
 - -v: 偵錯模式。
 - --verbose: 設定日誌顯示等級，數值為 1~5 之間。
 
-## 從原始碼安裝
-```sh
-git clone -q https://github.com/ZhenShuo2021/V2PH-Downloader  # 或是直接下載 repo
-cd V2PH-Downloader                           # 進入資料夾
-python -m venv .venv                         # 創建虛擬環境，下一步是進入虛擬環境
-source .venv/bin/activate                    # Windows指令: .venv\Scripts\activate
-pip install -r requirements.txt              # 安裝依賴套件
+## 在腳本中使用
+
+```py
+import v2dl
+import logging
+
+# setup config
+your_custom_config = {
+    "download": {
+        "min_scroll_length": 100,
+        "max_scroll_length": 100,
+        # ...
+    },
+}
+your_custom_config_dir = "/path/to/config/dir"
+
+# Initialization
+log_level = logging.INFO
+logger = logging.getLogger(__name__)
+config_manager = v2dl.ConfigManager(your_custom_config, your_custom_config_dir)
+app_config = config_manager.load()
+download_service = v2dl.ThreadingService(logger)
+
+runtime_config = RuntimeConfig(
+    url=args.url,
+    bot_type=args.bot_type,
+    use_chrome_default_profile=args.use_default_chrome_profile,
+    terminate=args.terminate,
+    download_service=download_service,
+    dry_run=args.dry_run,
+    logger=logger,
+    log_level=log_level,
+    no_skip=args.no_skip,
+)
+
+# (Optional) setup logging format
+v2dl.setup_logging(runtime_config.log_level, log_path=app_config.paths.system_log)
+
+# Instantiate and start scraping
+web_bot = get_bot(runtime_config, app_config)
+scraper = ScrapeManager(runtime_config, app_config, web_bot)
+scraper.start_scraping()
 ```
 
 ## 補充
