@@ -202,11 +202,12 @@ def threading_process_data_job(task_id: str, params: dict, logger: logging.Logge
     return {"processed": True, "data": params}
 
 
-def download_album(
+def download_album(  # noqa: PLR0913
     album_name: str,
     image_links: list[tuple[str, str]],
     destination: str,
     rate_limit: int,
+    no_skip: bool,
     logger: logging.Logger,
 ):
     """Download images from image links.
@@ -218,6 +219,7 @@ def download_album(
         image_links (list[tuple[str, str]]): List of tuples with image URLs and corresponding alt text for filenames.
         destination (str): Download parent directory of album folder.
         rate_limit (int): Download rate limits.
+        no_skip (bool): Do not skip downloaded files.
         logger (logging.Logger): Logger.
     """
     folder = destination / Path(album_name)
@@ -227,7 +229,7 @@ def download_album(
         filename = re.sub(r'[<>:"/\\|?*]', "", alt)  # Remove invalid characters
         file_path = folder / f"{filename}.jpg"
 
-        if file_path.exists():
+        if file_path.exists() and not no_skip:
             logger.info("File already exists: '%s'", file_path)
             continue
 

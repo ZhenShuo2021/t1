@@ -107,6 +107,7 @@ class ScrapingStrategy(Generic[LinkType], ABC):
     """Abstract base class for different scraping strategies."""
 
     def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
+        self.runtime_config = runtime_config
         self.config = base_config
         self.web_bot = web_bot
         self.download_service = runtime_config.download_service
@@ -186,6 +187,7 @@ class AlbumImageStrategy(ScrapingStrategy[ImageLink]):
                     image_links,
                     self.config.download.download_dir,
                     self.config.download.rate_limit,
+                    self.runtime_config.no_skip,
                     self.logger,
                 ),
                 job=threading_download_job,

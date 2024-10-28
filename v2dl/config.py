@@ -19,6 +19,7 @@ class RuntimeConfig:
     dry_run: bool
     logger: Any
     log_level: int
+    no_skip: bool = False
 
 
 @dataclass
@@ -166,6 +167,7 @@ def parse_arguments():
         "--log-level", default=None, type=int, choices=range(1, 6), help="Set log level (1~5)"
     )
     parser.add_argument("--dry-run", action="store_true", help="Dry run without downloading")
+    parser.add_argument("--no-skip", action="store_true", help="Do not skip downloaded files")
     parser.add_argument("--terminate", action="store_true", help="Terminate chrome after scraping")
     args = parser.parse_args()
 

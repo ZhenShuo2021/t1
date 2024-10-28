@@ -67,7 +67,7 @@ class ScrapeManager:
 
     def scrape_album(self, album_url: str):
         """Scrape a single album page."""
-        if self.album_tracker.is_downloaded(album_url):
+        if self.album_tracker.is_downloaded(album_url) and not self.runtime_config.no_skip:
             self.logger.info("Album %s already downloaded, skipping.", album_url)
             return
 
@@ -116,6 +116,7 @@ def main():
         dry_run=args.dry_run,
         logger=logger,
         log_level=log_level,
+        no_skip=args.no_skip,
     )
 
     web_bot = get_bot(runtime_config, app_config)
