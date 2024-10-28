@@ -3,6 +3,7 @@ import re
 from typing import ClassVar
 
 from .config import Config, ConfigManager, RuntimeConfig, parse_arguments
+from .const import DEFAULT_CONFIG
 from .error import ScrapeError
 from .logger import setup_logging
 from .scrapper import LinkScraper
@@ -100,7 +101,7 @@ class ScrapeManager:
 
 def main():
     args, log_level = parse_arguments()
-    app_config = ConfigManager().load()
+    app_config = ConfigManager(DEFAULT_CONFIG).load()
     runtime_config = RuntimeConfig(
         url=args.url,
         dry_run=args.dry_run,

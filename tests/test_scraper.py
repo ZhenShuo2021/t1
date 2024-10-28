@@ -5,6 +5,7 @@ import time
 import pytest
 
 from v2dl.config import ConfigManager
+from v2dl.const import DEFAULT_CONFIG
 from v2dl.logger import setup_logging
 from v2dl.v2dl import ScrapeManager
 from v2dl.web_bot import get_bot
@@ -36,7 +37,7 @@ def setup_test_env():
 
     # monkeypatch.setattr("os.path.join", patched_join)
 
-    config = ConfigManager().load()
+    config = ConfigManager(DEFAULT_CONFIG).load()
     setup_logging(logging.INFO, log_path=config.paths.system_log)
     web_bot = get_bot(bot_type, config, terminate, logger)
     scraper = ScrapeManager(test_url, web_bot, dry_run, config, logger)

@@ -9,8 +9,6 @@ from typing import Any
 import yaml
 from dotenv import load_dotenv
 
-from .const import DEFAULT_CONFIG
-
 
 @dataclass
 class RuntimeConfig:
@@ -57,15 +55,19 @@ class ConfigManager:
     Config dataclass consists of DownloadConfig, PathConfig, ChromeConfig dataclasses.
     """
 
+    def __init__(self, config: dict[str, dict[str, Any]], config_dir: str | None = None):
+        self.config = config
+        self.config_dir = config_dir
+
     def load(self) -> Config:
         """Load configuration from files and environment."""
         system_config_dir = ConfigManager.get_system_config_dir()
+        if self.config_dir is not None:  # overwrite the config_dir
+            system_config_dir = Path(self.config_dir)
         system_config_dir.mkdir(parents=True, exist_ok=True)
 
         custom_config_path = system_config_dir / "config.yaml"
         custom_env_path = system_config_dir / ".env"
-
-        config = DEFAULT_CONFIG
 
         # Load environment variables
         if custom_env_path.exists():
@@ -76,26 +78,26 @@ class ConfigManager:
             with open(custom_config_path) as f:
                 custom_config = yaml.safe_load(f)
                 if custom_config:  # not empty
-                    config = ConfigManager._merge_config(config, custom_config)
+                    self.config = ConfigManager._merge_config(self.config, custom_config)
 
         # Check file paths
-        for key, path in config["paths"].items():
-            config["paths"][key] = self.resolve_path(path, system_config_dir)
+        for key, path in self.config["paths"].items():
+            self.config["paths"][key] = self.resolve_path(path, system_config_dir)
 
-        config["chrome"]["profile_path"] = self.resolve_path(
-            config["chrome"]["profile_path"], system_config_dir
+        self.config["chrome"]["profile_path"] = self.resolve_path(
+            self.config["chrome"]["profile_path"], system_config_dir
         )
 
         # Check download_dir path
-        download_dir = config["download"].get("download_dir", "").strip()
-        config["download"]["download_dir"] = self._get_download_dir(download_dir)
+        download_dir = self.config["download"].get("download_dir", "").strip()
+        self.config["download"]["download_dir"] = self._get_download_dir(download_dir)
 
         return Config(
-            download=DownloadConfig(**config["download"]),
-            paths=PathConfig(**config["paths"]),
+            download=DownloadConfig(**self.config["download"]),
+            paths=PathConfig(**self.config["paths"]),
             chrome=ChromeConfig(
-                exec_path=ConfigManager._get_chrome_exec_path(config),
-                profile_path=config["chrome"]["profile_path"],
+                exec_path=ConfigManager._get_chrome_exec_path(self.config),
+                profile_path=self.config["chrome"]["profile_path"],
             ),
         )
 
