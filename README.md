@@ -19,10 +19,10 @@ v2dl <url>
 
 ### 嘗試第一次下載
 ```sh
-# 單一相簿：有村架純《私の好きな町。》
+# 下載單一相簿
 v2dl "https://www.v2ph.com/album/Weekly-Young-Jump-2015-No15"
 
-# 相簿列表：乃木板46
+# 下載相簿列表的所有相簿
 v2dl "https://www.v2ph.com/category/nogizaka46"
 ```
 
@@ -48,7 +48,6 @@ v2dl "https://www.v2ph.com/category/nogizaka46"
 - --terminate: 程式結束後是否關閉 Chrome 視窗。
 - -q: 安靜模式。
 - -v: 偵錯模式。
-- --verbose: 設定日誌顯示等級，數值為 1~5 之間。
 
 ## 在腳本中使用
 
@@ -56,41 +55,54 @@ v2dl "https://www.v2ph.com/category/nogizaka46"
 import v2dl
 import logging
 
-# setup config
 your_custom_config = {
     "download": {
-        "min_scroll_length": 100,
-        "max_scroll_length": 100,
-        # ...
+        "min_scroll_length": 500,
+        "max_scroll_length": 1000,
+        "min_scroll_step": 150,
+        "max_scroll_step": 250,
+        "rate_limit": 400,
+        "download_dir": "v2dl",
+    },
+    "paths": {
+        "download_log": "downloaded_albums.txt",
+        "system_log": "v2dl.log",
+    },
+    "chrome": {
+        "profile_path": "v2dl_chrome_profile",
+        "exec_path": {
+            "Linux": "/usr/bin/google-chrome",
+            "Darwin": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "Windows": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        },
     },
 }
-your_custom_config_dir = "/path/to/config/dir"
 
-# Initialization
+# Initialize
 log_level = logging.INFO
 logger = logging.getLogger(__name__)
-config_manager = v2dl.ConfigManager(your_custom_config, your_custom_config_dir)
+config_manager = v2dl.ConfigManager(your_custom_config)
 app_config = config_manager.load()
 download_service = v2dl.ThreadingService(logger)
 
-runtime_config = RuntimeConfig(
-    url=args.url,
-    bot_type=args.bot_type,
-    use_chrome_default_profile=args.use_default_chrome_profile,
-    terminate=args.terminate,
+runtime_config = v2dl.config.RuntimeConfig(
+    url="https://www.v2ph.com/album/Weekly-Big-Comic-Spirits-2016-No22-23",
+    bot_type="drission",
+    use_chrome_default_profile=False,
+    terminate=False,
     download_service=download_service,
-    dry_run=args.dry_run,
+    dry_run=False,
     logger=logger,
     log_level=log_level,
-    no_skip=args.no_skip,
+    no_skip=True,
 )
 
 # (Optional) setup logging format
 v2dl.setup_logging(runtime_config.log_level, log_path=app_config.paths.system_log)
 
 # Instantiate and start scraping
-web_bot = get_bot(runtime_config, app_config)
-scraper = ScrapeManager(runtime_config, app_config, web_bot)
+web_bot = v2dl.get_bot(runtime_config, app_config)
+scraper = v2dl.ScrapeManager(runtime_config, app_config, web_bot)
 scraper.start_scraping()
 ```
 

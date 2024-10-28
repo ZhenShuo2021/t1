@@ -165,7 +165,9 @@ def parse_arguments():
     parser.add_argument("--no-skip", action="store_true", help="Do not skip downloaded files")
     parser.add_argument("--terminate", action="store_true", help="Terminate chrome after scraping")
     parser.add_argument(
-        "--use-default-chrome-profile", action="store_true", help="Use default chrome profile"
+        "--use-default-chrome-profile",
+        action="store_true",
+        help="Use default chrome profile. Using default profile with an operating is not valid",
     )
 
     group = parser.add_mutually_exclusive_group()
