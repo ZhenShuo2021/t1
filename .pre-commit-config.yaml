@@ -31,3 +31,12 @@ repos:
         - "--disable-error-code=import-untyped"
         - "--disable-error-code=import-not-found"
         - "--check-untyped-defs"
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: "pytest -s -v"
+        language: system
+        pass_filenames: false
+        always_run: true
