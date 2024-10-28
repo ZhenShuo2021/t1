@@ -6,7 +6,7 @@ from .config import Config, ConfigManager, RuntimeConfig, parse_arguments
 from .error import ScrapeError
 from .logger import setup_logging
 from .scrapper import LinkScraper
-from .utils import AlbumTracker, DownloadService, LinkParser
+from .utils import AlbumTracker, LinkParser, ThreadingService
 from .web_bot import get_bot
 
 
@@ -32,8 +32,8 @@ class ScrapeManager:
         self.logger = logger
 
         # 初始化
-        self.download_service = DownloadService(config, logger)
-        self.link_scraper = LinkScraper(web_bot, dry_run, self.download_service, logger)
+        self.download_service: ThreadingService = ThreadingService(logger)
+        self.link_scraper = LinkScraper(config, web_bot, dry_run, self.download_service, logger)
         self.album_tracker = AlbumTracker(config.paths.download_log)
 
         if not self.dry_run:

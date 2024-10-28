@@ -6,8 +6,9 @@ from typing import ClassVar, Generic, TypeAlias, TypeVar
 
 from lxml import html
 
+from .config import Config
 from .const import BASE_URL, XPATH_ALBUM, XPATH_ALBUM_LIST, XPATH_ALTS
-from .utils import LinkParser
+from .utils import LinkParser, ThreadingService, threading_download_job
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str
@@ -27,13 +28,22 @@ class LinkScraper:
         "ALBUM_IMAGE": "album_image",
     }
 
-    def __init__(self, web_bot, dry_run: bool, download_service, logger: logging.Logger):
+    def __init__(
+        self,
+        config: Config,
+        web_bot,
+        dry_run: bool,
+        download_service: ThreadingService,
+        logger: logging.Logger,
+    ):
         self.web_bot = web_bot
         self.logger = logger
         self.strategies: dict[str, ScrapingStrategy] = {
-            self.SCRAPE_TYPE["ALBUM_LIST"]: AlbumListStrategy(web_bot, download_service, logger),
+            self.SCRAPE_TYPE["ALBUM_LIST"]: AlbumListStrategy(
+                config, web_bot, download_service, logger
+            ),
             self.SCRAPE_TYPE["ALBUM_IMAGE"]: AlbumImageStrategy(
-                web_bot, download_service, logger, dry_run
+                config, web_bot, download_service, logger, dry_run
             ),
         }
 
@@ -106,7 +116,8 @@ class LinkScraper:
 class ScrapingStrategy(Generic[LinkType], ABC):
     """Abstract base class for different scraping strategies."""
 
-    def __init__(self, web_bot, download_service, logger: logging.Logger):
+    def __init__(self, config, web_bot, download_service, logger: logging.Logger):
+        self.config = config
         self.web_bot = web_bot
         self.download_service = download_service
         self.logger = logger
@@ -148,8 +159,15 @@ class AlbumListStrategy(ScrapingStrategy[AlbumLink]):
 class AlbumImageStrategy(ScrapingStrategy[ImageLink]):
     """Strategy for scraping album image pages."""
 
-    def __init__(self, web_bot, download_service, logger: logging.Logger, dry_run: bool):
-        super().__init__(web_bot, download_service, logger)
+    def __init__(
+        self,
+        config: Config,
+        web_bot,
+        download_service: ThreadingService,
+        logger: logging.Logger,
+        dry_run: bool,
+    ):
+        super().__init__(config, web_bot, download_service, logger)
         self.dry_run = dry_run
         self.alt_counter = 0
 
@@ -178,7 +196,17 @@ class AlbumImageStrategy(ScrapingStrategy[ImageLink]):
         if not self.dry_run:
             album_name = self._extract_album_name(alts)
             image_links = list(zip(page_links, alts))
-            self.download_service.add_download_task(album_name, image_links)
+            self.download_service.add_task(
+                task_id="Error processing task",
+                params=(
+                    album_name,
+                    image_links,
+                    self.config.download.download_dir,
+                    self.config.download.rate_limit,
+                    self.logger,
+                ),
+                job=threading_download_job,
+            )
 
         self.logger.info("Found %d images on page %d", len(page_links), page)
 
