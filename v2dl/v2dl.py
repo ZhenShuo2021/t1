@@ -111,6 +111,7 @@ def main():
     runtime_config = RuntimeConfig(
         url=args.url,
         bot_type=args.bot_type,
+        use_chrome_default_profile=args.use_default_chrome_profile,
         terminate=args.terminate,
         download_service=download_service,
         dry_run=args.dry_run,

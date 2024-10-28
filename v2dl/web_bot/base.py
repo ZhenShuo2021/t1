@@ -11,6 +11,7 @@ class BaseBot(ABC):
     """Abstract base class for bots, defining shared behaviors."""
 
     def __init__(self, runtime_config: RuntimeConfig, base_config: Config):
+        self.runtime_config = runtime_config
         self.config = base_config
         self.close_browser = runtime_config.terminate
         self.logger = runtime_config.logger
@@ -26,6 +27,17 @@ class BaseBot(ABC):
     @abstractmethod
     def close_driver(self):
         """Close the browser and handle cleanup."""
+
+    def prepare_chrome_profile(self):
+        user_data_dir = self.config.chrome.profile_path
+
+        if not os.path.exists(user_data_dir):
+            os.makedirs(user_data_dir)
+            self.new_profile = True
+        else:
+            self.new_profile = False
+
+        return user_data_dir
 
     def auto_page_scroll(
         self, url: str, max_retry: int = 3, page_sleep: int = 5, fast_scroll: bool = True

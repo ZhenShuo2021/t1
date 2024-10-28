@@ -20,6 +20,7 @@ class RuntimeConfig:
     logger: Any
     log_level: int
     no_skip: bool = False
+    use_chrome_default_profile: bool = False
 
 
 @dataclass
@@ -160,17 +161,23 @@ def parse_arguments():
         required=False,
         help="Type of bot to use (default: drission)",
     )
+    parser.add_argument("--dry-run", action="store_true", help="Dry run without downloading")
+    parser.add_argument("--no-skip", action="store_true", help="Do not skip downloaded files")
+    parser.add_argument("--terminate", action="store_true", help="Terminate chrome after scraping")
+    parser.add_argument(
+        "--use-default-chrome-profile", action="store_true", help="Use default chrome profile"
+    )
+
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-q", "--quiet", action="store_true", help="Quiet mode")
     group.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
     group.add_argument(
         "--log-level", default=None, type=int, choices=range(1, 6), help="Set log level (1~5)"
     )
-    parser.add_argument("--dry-run", action="store_true", help="Dry run without downloading")
-    parser.add_argument("--no-skip", action="store_true", help="Do not skip downloaded files")
-    parser.add_argument("--terminate", action="store_true", help="Terminate chrome after scraping")
+
     args = parser.parse_args()
 
+    # convert log level
     if args.quiet:
         log_level = logging.ERROR
     elif args.verbose:

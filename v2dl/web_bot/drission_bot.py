@@ -1,4 +1,3 @@
-import os
 import random
 import sys
 import time
@@ -18,18 +17,15 @@ class DrissionBot(BaseBot):
         self.cloudflare = DriCloudflareHandler(self.page, self.logger)
 
     def init_driver(self):
-        user_data_dir = self.config.chrome.profile_path
-        if not os.path.exists(user_data_dir):
-            os.makedirs(user_data_dir)
-            self.new_profile = True
-        else:
-            self.new_profile = False
-
         # subprocess of chrome: Drission terminate chrome anyway
-
         co = ChromiumOptions()
-        # co.use_system_user_path()
-        co.set_user_data_path(user_data_dir)
+
+        if not self.runtime_config.use_chrome_default_profile:
+            user_data_dir = self.prepare_chrome_profile()
+            co.set_user_data_path(user_data_dir)
+        else:
+            co.use_system_user_path()
+
         self.page = ChromiumPage(addr_or_opts=co)
         self.page.set.scroll.smooth(on_off=True)
         self.page.set.scroll.wait_complete(on_off=True)

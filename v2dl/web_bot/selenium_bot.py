@@ -1,4 +1,3 @@
-import os
 import random
 import subprocess
 import sys
@@ -18,6 +17,19 @@ from selenium.webdriver.support.ui import WebDriverWait
 from ..const import SELENIUM_AGENT
 from .base import BaseBehavior, BaseBot, BaseScroll
 
+DEFAULT_BOT_OPT = [
+    "--remote-debugging-port=9222",
+    SELENIUM_AGENT,
+    "--disable-gpu",
+    "--disable-infobars",
+    "--disable-extensions",
+    "--disable-dev-shm-usage",
+    # "--disable-blink-features",
+    # "--disable-blink-features=AutomationControlled",
+    "--start-maximized",
+    # "--ignore-certificate-errors",
+]
+
 
 class SeleniumBot(BaseBot):
     def __init__(self, runtime_config, base_config):
@@ -31,28 +43,13 @@ class SeleniumBot(BaseBot):
         self.chrome_process: Popen
         options = Options()
 
-        user_data_dir = self.config.chrome.profile_path
-        if not os.path.exists(user_data_dir):
-            os.makedirs(user_data_dir)
-            self.new_profile = True
-        else:
-            self.new_profile = False
+        chrome_path = [self.config.chrome.exec_path]
+        subprocess_cmd = chrome_path + DEFAULT_BOT_OPT
 
-        chrome_path = self.config.chrome.exec_path
-        subprocess_cmd = [
-            chrome_path,
-            "--remote-debugging-port=9222",
-            f"--user-data-dir={user_data_dir}",
-            SELENIUM_AGENT,
-            "--disable-gpu",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--disable-dev-shm-usage",
-            # "--disable-blink-features",
-            # "--disable-blink-features=AutomationControlled",
-            "--start-maximized",
-            # "--ignore-certificate-errors",
-        ]
+        if not self.runtime_config.use_chrome_default_profile:
+            user_data_dir = self.prepare_chrome_profile()
+            subprocess_cmd.append(f"--user-data-dir={user_data_dir}")
+
         self.chrome_process = subprocess.Popen(subprocess_cmd)
 
         options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
