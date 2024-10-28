@@ -19,7 +19,7 @@ BOT = "drission"
 
 
 @pytest.fixture
-def setup_test_env():
+def setup_test_env(tmp_path):
     # test_download_dir = tmp_path / "test_download"
     # test_download_dir.mkdir()
     test_url = TEST_URL
@@ -38,6 +38,9 @@ def setup_test_env():
     # monkeypatch.setattr("os.path.join", patched_join)
 
     config = ConfigManager(DEFAULT_CONFIG).load()
+    config.paths.download_log = tmp_path / "download.log"
+    config.download.download_dir = tmp_path / "Downloads"
+
     setup_logging(logging.INFO, log_path=config.paths.system_log)
     web_bot = get_bot(bot_type, config, terminate, logger)
     scraper = ScrapeManager(test_url, web_bot, dry_run, config, logger)
@@ -59,6 +62,11 @@ def test_download(setup_test_env):
             break
         time.sleep(1)
 
+    print("****************************************")
+    print(time.time() - start_time)
+    print(test_download_dir)
+    print(os.listdir(test_download_dir)[0])
+    print("****************************************")
     downloaded_files = os.path.join(test_download_dir, os.listdir(test_download_dir)[0])
     assert len(downloaded_files) > 0, "No success downloads"
 
