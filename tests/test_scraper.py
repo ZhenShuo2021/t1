@@ -68,13 +68,21 @@ def setup_test_env(tmp_path):
 def test_download(setup_test_env):
     timeout = 30
     scraper, test_download_dir = setup_test_env
+    valid_extensions = (".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG")
 
     thread = threading.Thread(target=scraper.start_scraping)
     thread.start()
     thread.join(timeout)
 
-    downloaded_files = os.path.join(test_download_dir, os.listdir(test_download_dir)[0])
-    assert len(downloaded_files) > 0, "No success downloads"
+    subdirectories = os.listdir(test_download_dir)
+    assert len(subdirectories) > 0, "No subdirectory found"
+
+    download_subdir = os.path.join(test_download_dir, subdirectories[0])
+    assert os.path.isdir(download_subdir), "Expected a directory but found a file"
+
+    image_files_exist = any(file.endswith(valid_extensions) for file in os.listdir(download_subdir))
+
+    assert image_files_exist, "No image found"
 
 
 if __name__ == "__main__":
