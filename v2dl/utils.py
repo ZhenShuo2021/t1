@@ -251,7 +251,7 @@ def download_image(url: str, save_path: Path, rate_limit: int, logger: logging.L
         logger.error("HTTP error occurred: %s", http_err)
         return False
     except Exception as e:
-        logger.error("An error occurred: %s", e)
+        logger.error("An error occurred while downloading url '%s': %s", url, e)
         return False
 
 
