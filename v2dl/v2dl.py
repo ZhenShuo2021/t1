@@ -6,7 +6,7 @@ from .config import Config, ConfigManager, RuntimeConfig, parse_arguments
 from .const import DEFAULT_CONFIG
 from .error import ScrapeError
 from .logger import setup_logging
-from .scrapper import LinkScraper
+from .scrapper import ScraperHandler
 from .utils import AlbumTracker, LinkParser, ThreadingService
 from .web_bot import get_bot
 
@@ -35,7 +35,7 @@ class ScrapeManager:
         # 初始化
         self.path_parts, self.start_page = LinkParser.parse_input_url(runtime_config.url)
         self.download_service: ThreadingService = runtime_config.download_service
-        self.link_scraper = LinkScraper(runtime_config, base_config, web_bot)
+        self.link_scraper = ScraperHandler(runtime_config, base_config, web_bot)
         self.album_tracker = AlbumTracker(base_config.paths.download_log)
 
         if not self.dry_run:
@@ -56,10 +56,9 @@ class ScrapeManager:
     def scrape_album_list(self, actor_url: str):
         """Scrape all albums in album list page."""
         album_links = self.link_scraper.scrape(actor_url, self.start_page, "album_list")
-        valid_album_links = [album_url for album_url in album_links if isinstance(album_url, str)]
-        self.logger.info("Found %d albums", len(valid_album_links))
+        self.logger.info("Found %d albums", len(album_links))
 
-        for album_url in valid_album_links:
+        for album_url in album_links:
             if self.dry_run:
                 self.logger.info("[DRY RUN] Album URL: %s", album_url)
             else:

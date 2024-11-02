@@ -10,15 +10,15 @@ from .const import BASE_URL, XPATH_ALBUM, XPATH_ALBUM_LIST, XPATH_ALTS
 from .utils import LinkParser, threading_download_job
 
 # Manage return types of each scraper here
-AlbumList: TypeAlias = str
-AlbumImage: TypeAlias = tuple[str, str]
-LinkType = TypeVar("LinkType", AlbumList, AlbumImage)
+AlbumLink: TypeAlias = str
+ImageLinkAndALT: TypeAlias = tuple[str, str]
+LinkType = TypeVar("LinkType", AlbumLink, ImageLinkAndALT)
 
 # Define literal types for scraping types
 ScrapeType = Literal["album_list", "album_image"]
 
 
-class LinkScraper:
+class ScraperHandler:
     """Main scraper class using strategy pattern.
 
     methods buffer_xxx are buffer methods used to avoid typing error.
@@ -27,20 +27,20 @@ class LinkScraper:
     def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
         self.web_bot = web_bot
         self.logger = runtime_config.logger
-        self.strategies: dict[ScrapeType, ScrapingStrategy] = {
-            "album_list": AlbumListStrategy(runtime_config, base_config, web_bot),
-            "album_image": AlbumImageStrategy(runtime_config, base_config, web_bot),
+        self.strategies: dict[ScrapeType, BaseScraper] = {
+            "album_list": AlbumScraper(runtime_config, base_config, web_bot),
+            "album_image": ImageScraper(runtime_config, base_config, web_bot),
         }
 
     @overload
     def scrape(
         self, url: str, start_page: int, scrape_type: Literal["album_list"], **kwargs
-    ) -> list[AlbumList]: ...
+    ) -> list[AlbumLink]: ...
 
     @overload
     def scrape(
         self, url: str, start_page: int, scrape_type: Literal["album_image"], **kwargs
-    ) -> list[AlbumImage]: ...
+    ) -> list[ImageLinkAndALT]: ...
 
     def scrape(
         self,
@@ -48,14 +48,14 @@ class LinkScraper:
         start_page: int,
         scrape_type: ScrapeType,
         **kwargs,
-    ) -> list[AlbumList] | list[AlbumImage]:
+    ) -> list[AlbumLink] | list[ImageLinkAndALT]:
         """Scrape pages for links using the appropriate strategy."""
         strategy = self.strategies[scrape_type]
         self.logger.info(
             "Starting to scrape %s links from %s", "album" if scrape_type else "image", url
         )
 
-        page_result: Union[list[AlbumList], list[AlbumImage]] = []
+        page_result: Union[list[AlbumLink], list[ImageLinkAndALT]] = []
         page = start_page
 
         while True:
@@ -73,9 +73,7 @@ class LinkScraper:
             # log no images
             if not page_links:
                 self.logger.info(
-                    "No more %s found on page %d",
-                    "albums" if scrape_type == "album_list" else "images",
-                    page,
+                    "No more %s found on page %d", "albums" if scrape_type else "images", page
                 )
                 break
 
@@ -102,7 +100,7 @@ class LinkScraper:
         return next_page
 
 
-class ScrapingStrategy(Generic[LinkType], ABC):
+class BaseScraper(Generic[LinkType], ABC):
     """Abstract base class for different scraping strategies."""
 
     def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
@@ -128,19 +126,16 @@ class ScrapingStrategy(Generic[LinkType], ABC):
         """Process links found on the page."""
 
 
-class AlbumListStrategy(ScrapingStrategy[AlbumList]):
+class AlbumScraper(BaseScraper[AlbumLink]):
     """Strategy for scraping album list pages."""
 
-    xpath = XPATH_ALBUM_LIST
-
-    @classmethod
-    def get_xpath(cls) -> str:
-        return cls.xpath
+    def get_xpath(self) -> str:
+        return XPATH_ALBUM_LIST
 
     def process_page_links(
         self,
         page_links: list[str],
-        page_result: list[AlbumList],
+        page_result: list[AlbumLink],
         tree: html.HtmlElement,
         page: int,
         **kwargs,
@@ -149,7 +144,7 @@ class AlbumListStrategy(ScrapingStrategy[AlbumList]):
         self.logger.info("Found %d albums on page %d", len(page_links), page)
 
 
-class AlbumImageStrategy(ScrapingStrategy[AlbumImage]):
+class ImageScraper(BaseScraper[ImageLinkAndALT]):
     """Strategy for scraping album image pages."""
 
     def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
@@ -163,7 +158,7 @@ class AlbumImageStrategy(ScrapingStrategy[AlbumImage]):
     def process_page_links(
         self,
         page_links: list[str],
-        page_result: list[AlbumImage],
+        page_result: list[ImageLinkAndALT],
         tree: html.HtmlElement,
         page: int,
         **kwargs,

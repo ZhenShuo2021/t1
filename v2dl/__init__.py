@@ -2,7 +2,7 @@
 from .config import Config, ConfigManager, RuntimeConfig
 from .error import DownloadError, FileProcessingError, ScrapeError
 from .logger import setup_logging
-from .scrapper import LinkScraper
+from .scrapper import ScraperHandler
 from .utils import ThreadingService
 from .v2dl import ScrapeManager
 from .web_bot import get_bot
@@ -13,7 +13,7 @@ __all__ = [
     "ConfigManager",
     "setup_logging",
     "ThreadingService",
-    "LinkScraper",
+    "ScraperHandler",
     "ScrapeManager",
     "ScrapeError",
     "FileProcessingError",
