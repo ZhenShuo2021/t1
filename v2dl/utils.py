@@ -19,9 +19,9 @@ class LinkParser:
     """Tool class parses URL."""
 
     @staticmethod
-    def parse_input_url(url):
+    def parse_input_url(url: str) -> tuple[list[str], int]:
         parsed_url = urlparse(url)
-        path_parts: list[str] = parsed_url.path.split("/")
+        path_parts = parsed_url.path.split("/")
         query_params = parse_qs(parsed_url.query)
         start_page: int = int(query_params.get("page", [1])[0])  # default page=1
         return path_parts, start_page

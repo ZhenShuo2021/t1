@@ -55,7 +55,7 @@ class ScrapeManager:
 
     def scrape_album_list(self, actor_url: str):
         """Scrape all albums in album list page."""
-        album_links = self.link_scraper.buffer_album_list(actor_url, self.start_page)
+        album_links = self.link_scraper.scrape(actor_url, self.start_page, "album_list")
         valid_album_links = [album_url for album_url in album_links if isinstance(album_url, str)]
         self.logger.info("Found %d albums", len(valid_album_links))
 
@@ -71,7 +71,7 @@ class ScrapeManager:
             self.logger.info("Album %s already downloaded, skipping.", album_url)
             return
 
-        image_links = self.link_scraper.buffer_album_images(album_url, self.start_page)
+        image_links = self.link_scraper.scrape(album_url, self.start_page, "album_image")
         if image_links:
             album_name = re.sub(r"\s*\d+$", "", image_links[0][1])
             self.logger.info("Found %d images in album %s", len(image_links), album_name)
