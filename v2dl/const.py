@@ -3,10 +3,10 @@ from typing import Any
 
 DEFAULT_CONFIG: dict[str, dict[str, Any]] = {
     "download": {
-        "min_scroll_length": 500,
-        "max_scroll_length": 1000,
-        "min_scroll_step": 150,
-        "max_scroll_step": 250,
+        "min_scroll_length": 1000,
+        "max_scroll_length": 2000,
+        "min_scroll_step": 300,
+        "max_scroll_step": 500,
         "rate_limit": 400,
         "download_dir": "v2dl",
     },
