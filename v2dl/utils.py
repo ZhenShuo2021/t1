@@ -186,12 +186,37 @@ class AlbumTracker:
 
 
 def threading_download_job(task_id: str, params: tuple, logger: logging.Logger) -> bool:
+    """Download single photo job for threading service.
+
+    Args:
+        task_id (str): Task identifier
+        params (tuple): (url, alt, destination, headers, rate_limit, no_skip)
+                       destination is the parent directory for saving files
+        logger (logging.Logger): Logger instance
+
+    Returns:
+        bool: True if download successful, False otherwise
+    """
     try:
-        # Your original download_album logic here
-        download_album(*params)
-        return True
+        url, alt, destination, headers, rate_limit, no_skip = params
+
+        # obtain album_name from task_id (the format of task_id is "album_name_index")
+        album_name = task_id.rsplit("_", 1)[0]
+
+        # setup paths
+        folder = destination / Path(album_name)
+        folder.mkdir(parents=True, exist_ok=True)
+        filename = re.sub(r'[<>:"/\\|?*]', "", alt)  # Remove invalid characters
+        file_path = folder / f"{filename}.{get_image_extension(url)}"
+
+        if file_path.exists() and not no_skip:
+            logger.info("File already exists: '%s'", file_path)
+            return True
+
+        return download_image(url, file_path, headers, rate_limit, logger)
+
     except Exception as e:
-        logger.error("%s", e)
+        logger.error("Error downloading photo %s: %s", task_id, e)
         return False
 
 
@@ -227,7 +252,7 @@ def download_album(  # noqa: PLR0913
 
     for url, alt in image_links:
         filename = re.sub(r'[<>:"/\\|?*]', "", alt)  # Remove invalid characters
-        file_path = folder / f"{filename}.jpg"
+        file_path = folder / f"{filename}.{get_image_extension(url)}"
 
         if file_path.exists() and not no_skip:
             logger.info("File already exists: '%s'", file_path)
@@ -288,3 +313,19 @@ def download(url: str, save_path: Path, headers: dict, speed_limit_kbps: int = 1
 
             if elapsed_time < expected_time:
                 time.sleep(expected_time - elapsed_time)
+
+
+def get_image_extension(url: str) -> str:
+    """Get the extension of url.
+
+    If there is not an extension, return default value "jpg".
+    """
+    image_extensions = r"(?:[^.]|^)\.(jpg|jpeg|png|gif|bmp|webp|tiff|svg)$"
+
+    match = re.search(image_extensions, url, re.IGNORECASE)
+
+    if match:
+        return match.group(1)
+    else:
+        # 如果沒找到，返回預設值
+        return "jpg"

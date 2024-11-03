@@ -45,7 +45,7 @@ def main():
 
     setup_logging(log_level, log_path=app_config.paths.system_log)
     logger = logging.getLogger(__name__)
-    download_service: ThreadingService = ThreadingService(logger)
+    download_service: ThreadingService = ThreadingService(logger, num_workers=3)
 
     runtime_config = RuntimeConfig(
         url=args.url,

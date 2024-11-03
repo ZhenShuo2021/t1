@@ -121,7 +121,9 @@ class ScrapeHandler:
             # log no images
             if not page_links:
                 self.logger.info(
-                    "No more %s found on page %d", "albums" if scrape_type else "images", page
+                    "No more %s found on page %d",
+                    "albums" if scrape_type == "album_list" else "images",
+                    page,
                 )
                 break
 
@@ -236,20 +238,21 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
         # Handle downloads if not in dry run mode
         if not self.dry_run:
             album_name = self._extract_album_name(alts)
-            image_links = list(zip(page_links, alts))
-            self.download_service.add_task(
-                task_id="Error processing task",
-                params=(
-                    album_name,
-                    image_links,
-                    self.config.download.download_dir,
-                    HEADERS,
-                    self.config.download.rate_limit,
-                    self.runtime_config.no_skip,
-                    self.logger,
-                ),
-                job=threading_download_job,
-            )
+
+            # assign download job for each image
+            for i, (url, alt) in enumerate(zip(page_links, alts)):
+                self.download_service.add_task(
+                    task_id=f"{album_name}_{i}",
+                    params=(
+                        url,
+                        alt,
+                        self.config.download.download_dir,
+                        HEADERS,
+                        self.config.download.rate_limit,
+                        self.runtime_config.no_skip,
+                    ),
+                    job=threading_download_job,
+                )
 
         self.logger.info("Found %d images on page %d", len(page_links), page)
 
