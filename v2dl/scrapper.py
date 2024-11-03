@@ -6,7 +6,7 @@ from typing import ClassVar, Generic, Literal, TypeAlias, TypeVar, Union, overlo
 from lxml import html
 
 from .config import Config, RuntimeConfig
-from .const import BASE_URL, XPATH_ALBUM, XPATH_ALBUM_LIST, XPATH_ALTS
+from .const import BASE_URL, HEADERS
 from .utils import AlbumTracker, LinkParser, threading_download_job
 
 # Manage return types of each scraper here
@@ -19,7 +19,7 @@ ScrapeType = Literal["album_list", "album_image"]
 
 
 class ScrapeHandler:
-    """Class handles all scraper behaviors."""
+    """Handles all scraper behaviors."""
 
     # Defines the mapping from url part to scrape method.
     URL_HANDLERS: ClassVar[dict[str, ScrapeType]] = {
@@ -184,8 +184,10 @@ class BaseScraper(Generic[LinkType], ABC):
 class AlbumScraper(BaseScraper[AlbumLink]):
     """Strategy for scraping album list pages."""
 
+    XPATH_ALBUM_LIST = '//a[@class="media-cover"]/@href'
+
     def get_xpath(self) -> str:
-        return XPATH_ALBUM_LIST
+        return self.XPATH_ALBUM_LIST
 
     def process_page_links(
         self,
@@ -202,13 +204,16 @@ class AlbumScraper(BaseScraper[AlbumLink]):
 class ImageScraper(BaseScraper[ImageLinkAndALT]):
     """Strategy for scraping album image pages."""
 
+    XPATH_ALBUM = '//div[@class="album-photo my-2"]/img/@data-src'
+    XPATH_ALTS = '//div[@class="album-photo my-2"]/img/@alt'
+
     def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
         super().__init__(runtime_config, base_config, web_bot)
         self.dry_run = runtime_config.dry_run
         self.alt_counter = 0
 
     def get_xpath(self) -> str:
-        return XPATH_ALBUM
+        return self.XPATH_ALBUM
 
     def process_page_links(
         self,
@@ -218,7 +223,7 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
         page: int,
         **kwargs,
     ) -> None:
-        alts: list[str] = tree.xpath(XPATH_ALTS)
+        alts: list[str] = tree.xpath(self.XPATH_ALTS)
 
         # Handle missing alt texts
         if len(alts) < len(page_links):
@@ -238,6 +243,7 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
                     album_name,
                     image_links,
                     self.config.download.download_dir,
+                    HEADERS,
                     self.config.download.rate_limit,
                     self.runtime_config.no_skip,
                     self.logger,

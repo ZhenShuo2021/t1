@@ -33,9 +33,6 @@ WORKFLOW_URL_ACTOR = (
     "https://www.v2ph.com/album/Weekly-Big-Comic-Spirits-2016-No22-23"  # only 1 page
 )
 
-XPATH_ALTS = '//div[@class="album-photo my-2"]/img/@alt'
-XPATH_ALBUM = '//div[@class="album-photo my-2"]/img/@data-src'
-XPATH_ALBUM_LIST = '//a[@class="media-cover"]/@href'
 
 # For selenium webdriver
 SELENIUM_AGENT = "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.59 Safari/537.36"

@@ -12,8 +12,6 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import requests
 from lxml import html
 
-from .const import HEADERS
-
 
 class LinkParser:
     """Tool class parses URL."""
@@ -206,6 +204,7 @@ def download_album(  # noqa: PLR0913
     album_name: str,
     image_links: list[tuple[str, str]],
     destination: str,
+    headers: dict,
     rate_limit: int,
     no_skip: bool,
     logger: logging.Logger,
@@ -218,6 +217,7 @@ def download_album(  # noqa: PLR0913
         album_name (str): Name of album folder.
         image_links (list[tuple[str, str]]): List of tuples with image URLs and corresponding alt text for filenames.
         destination (str): Download parent directory of album folder.
+        headers (dict): Download request headers.
         rate_limit (int): Download rate limits.
         no_skip (bool): Do not skip downloaded files.
         logger (logging.Logger): Logger.
@@ -234,17 +234,23 @@ def download_album(  # noqa: PLR0913
             continue
 
         # requests module will log download url
-        if download_image(url, file_path, rate_limit, logger):
+        if download_image(url, file_path, headers, rate_limit, logger):
             pass
 
 
-def download_image(url: str, save_path: Path, rate_limit: int, logger: logging.Logger) -> bool:
+def download_image(
+    url: str,
+    save_path: Path,
+    headers: dict,
+    rate_limit: int,
+    logger: logging.Logger,
+) -> bool:
     """Error control subfunction for download files.
 
     Return `True` for successful download, else `False`.
     """
     try:
-        download(url, save_path, rate_limit)
+        download(url, save_path, headers, rate_limit)
         logger.info("Downloaded: '%s'", save_path)
         return True
     except requests.exceptions.HTTPError as http_err:
@@ -255,16 +261,18 @@ def download_image(url: str, save_path: Path, rate_limit: int, logger: logging.L
         return False
 
 
-def download(url: str, save_path: Path, speed_limit_kbps: int = 1536) -> None:
+def download(url: str, save_path: Path, headers: dict, speed_limit_kbps: int = 1536) -> None:
     """Download with speed limit function.
 
     Default speed limit is 1536 KBps (1.5 MBps).
     """
 
+    if headers is None:
+        headers = {}
     chunk_size = 1024
     speed_limit_bps = speed_limit_kbps * 1024  # 轉換為 bytes per second
 
-    response = requests.get(url, stream=True, headers=HEADERS)
+    response = requests.get(url, stream=True, headers=headers)
     response.raise_for_status()  # 確認請求成功
 
     with open(save_path, "wb") as file:
