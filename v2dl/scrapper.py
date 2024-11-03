@@ -1,13 +1,13 @@
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Generic, Literal, TypeAlias, TypeVar, Union, overload
+from typing import ClassVar, Generic, Literal, TypeAlias, TypeVar, Union, overload
 
 from lxml import html
 
 from .config import Config, RuntimeConfig
 from .const import BASE_URL, XPATH_ALBUM, XPATH_ALBUM_LIST, XPATH_ALTS
-from .utils import LinkParser, threading_download_job
+from .utils import AlbumTracker, LinkParser, threading_download_job
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str
@@ -18,31 +18,79 @@ LinkType = TypeVar("LinkType", AlbumLink, ImageLinkAndALT)
 ScrapeType = Literal["album_list", "album_image"]
 
 
-class ScraperHandler:
-    """Main scraper class using strategy pattern.
+class ScrapeHandler:
+    """Class handles all scraper behaviors."""
 
-    methods buffer_xxx are buffer methods used to avoid typing error.
-    """
+    # Defines the mapping from url part to scrape method.
+    URL_HANDLERS: ClassVar[dict[str, ScrapeType]] = {
+        "album": "album_image",
+        "actor": "album_list",
+        "company": "album_list",
+        "category": "album_list",
+        "country": "album_list",
+    }
 
     def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
         self.web_bot = web_bot
         self.logger = runtime_config.logger
+        self.runtime_config = runtime_config
         self.strategies: dict[ScrapeType, BaseScraper] = {
             "album_list": AlbumScraper(runtime_config, base_config, web_bot),
             "album_image": ImageScraper(runtime_config, base_config, web_bot),
         }
 
+        self.album_tracker = AlbumTracker(base_config.paths.download_log)
+        self.path_parts, self.start_page = LinkParser.parse_input_url(runtime_config.url)
+
+    def scrape(self, url: str, dry_run: bool = False) -> None:
+        """Main entry point for scraping operations."""
+        scrape_type = self._get_scrape_type()
+        if scrape_type == "album_list":
+            self.scrape_album_list(url, self.start_page, dry_run)
+        else:
+            self.scrape_album(url, self.start_page, dry_run)
+
+    def scrape_album_list(self, url: str, start_page: int, dry_run: bool) -> None:
+        """Handle scraping of album lists."""
+        album_links = self._real_scrape(url, start_page, "album_list")
+        self.logger.info("Found %d albums", len(album_links))
+
+        for album_url in album_links:
+            if dry_run:
+                self.logger.info("[DRY RUN] Album URL: %s", album_url)
+            else:
+                self.scrape_album(album_url, 1, dry_run)
+
+    def scrape_album(self, album_url: str, start_page: int, dry_run: bool) -> None:
+        """Handle scraping of a single album page."""
+        if self.album_tracker.is_downloaded(album_url) and not self.runtime_config.no_skip:
+            self.logger.info("Album %s already downloaded, skipping.", album_url)
+            return
+
+        image_links = self._real_scrape(album_url, start_page, "album_image")
+        if not image_links:
+            return
+
+        album_name = re.sub(r"\s*\d+$", "", image_links[0][1])
+        self.logger.info("Found %d images in album %s", len(image_links), album_name)
+
+        if dry_run:
+            for link, alt in image_links:
+                self.logger.info("[DRY RUN] Image URL: %s", link)
+        else:
+            self.album_tracker.log_downloaded(album_url)
+
     @overload
-    def scrape(
+    def _real_scrape(
         self, url: str, start_page: int, scrape_type: Literal["album_list"], **kwargs
     ) -> list[AlbumLink]: ...
 
     @overload
-    def scrape(
+    def _real_scrape(
         self, url: str, start_page: int, scrape_type: Literal["album_image"], **kwargs
     ) -> list[ImageLinkAndALT]: ...
 
-    def scrape(
+    def _real_scrape(
         self,
         url: str,
         start_page: int,
@@ -98,6 +146,13 @@ class ScraperHandler:
         if next_page % max_consecutive_page == 0:
             time.sleep(consecutive_sleep)
         return next_page
+
+    def _get_scrape_type(self):
+        """Get the appropriate handler method based on URL path."""
+        for part in self.path_parts:
+            if part in self.URL_HANDLERS:
+                return self.URL_HANDLERS[part]
+        raise ValueError(f"Unsupported URL type: {self.runtime_config.url}")
 
 
 class BaseScraper(Generic[LinkType], ABC):
