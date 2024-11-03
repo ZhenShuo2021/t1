@@ -21,4 +21,4 @@ __all__ = [
     "get_bot",
 ]
 
-__version__ = "0.0.5"
+__version__ = "0.0.6"
