@@ -16,7 +16,8 @@ class RuntimeConfig:
     url: str
     input_file: str
     bot_type: str
-    chrome_args: list[str]
+    chrome_args: list[str] | None
+    user_agent: str | None
     terminate: bool
     download_service: Any
     dry_run: bool
@@ -153,7 +154,8 @@ class ConfigManager:
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Web scraper for albums and images.")
+    formatter = lambda prog: argparse.HelpFormatter(prog, max_help_position=36)
+    parser = argparse.ArgumentParser(description="V2PH scraper.", formatter_class=formatter)
 
     input_group = parser.add_mutually_exclusive_group(required=True)
     input_group.add_argument("url", nargs="?", help="URL to scrape")
@@ -172,7 +174,12 @@ def parse_arguments():
     parser.add_argument(
         "--chrome-args",
         type=str,
-        help="Override Chrome arguments (example: '--arg1//--arg2//--arg3')",
+        help="Override Chrome arguments (example: --chrome-args='--arg1//--arg2//--arg3')",
+    )
+    parser.add_argument(
+        "--user-agent",
+        type=str,
+        help="Override user-agent (example: --user-agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64)...')",
     )
 
     parser.add_argument("--dry-run", action="store_true", help="Dry run without downloading")
@@ -181,7 +188,7 @@ def parse_arguments():
     parser.add_argument(
         "--use-default-chrome-profile",
         action="store_true",
-        help="Use default chrome profile. Using default profile with an operating is not valid",
+        help="Use default chrome profile. Using default profile with an operating chrome is not valid",
     )
 
     log_group = parser.add_mutually_exclusive_group()

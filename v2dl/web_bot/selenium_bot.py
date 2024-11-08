@@ -19,7 +19,6 @@ from .base import BaseBehavior, BaseBot, BaseScroll
 
 DEFAULT_BOT_OPT = [
     "--remote-debugging-port=9222",
-    SELENIUM_AGENT,
     "--disable-gpu",
     "--disable-infobars",
     "--disable-extensions",
@@ -46,6 +45,7 @@ class SeleniumBot(BaseBot):
         chrome_path = [self.config.chrome.exec_path]
         # "or" returns the first True element
         subprocess_cmd = chrome_path + (self.runtime_config.chrome_args or DEFAULT_BOT_OPT)
+        subprocess_cmd = [*subprocess_cmd, self.runtime_config.user_agent or SELENIUM_AGENT]
 
         if not self.runtime_config.use_chrome_default_profile:
             user_data_dir = self.prepare_chrome_profile()

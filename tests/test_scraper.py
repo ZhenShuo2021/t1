@@ -52,6 +52,7 @@ def setup_test_env(tmp_path):
         input_file="",
         bot_type=bot_type,
         chrome_args=[],
+        user_agent=None,
         terminate=terminate,
         download_service=download_service,
         dry_run=dry_run,
