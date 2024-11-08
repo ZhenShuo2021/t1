@@ -1,6 +1,6 @@
 import logging
 
-from .config import Config, ConfigManager, RuntimeConfig, parse_arguments
+from .config import Config, ConfigManager, RuntimeConfig, check_input_file, parse_arguments
 from .const import DEFAULT_CONFIG
 from .error import ScrapeError
 from .logger import setup_logging
@@ -14,7 +14,7 @@ class ScrapeManager:
 
     def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
         self.runtime_config = runtime_config
-        self.config = base_config
+        self.base_config = base_config
 
         self.web_bot = web_bot
         self.dry_run = runtime_config.dry_run
@@ -22,7 +22,6 @@ class ScrapeManager:
 
         # 初始化
         self.download_service: ThreadingService = runtime_config.download_service
-        self.link_scraper = ScrapeHandler(runtime_config, base_config, web_bot)
 
         if not self.dry_run:
             self.download_service.start_workers()
@@ -30,17 +29,33 @@ class ScrapeManager:
     def start_scraping(self):
         """Start scraping based on URL type."""
         try:
-            self.link_scraper.scrape(self.runtime_config.url, self.dry_run)
+            urls = self._load_urls()
+            for url in urls:
+                self.runtime_config.url = url
+                link_scraper = ScrapeHandler(self.runtime_config, self.base_config, self.web_bot)
+                link_scraper.scrape(url, self.dry_run)
         except ScrapeError as e:
-            self.logger.exception("Scrapping error '%s'", e)
+            self.logger.exception("Scraping error: '%s'", e)
         finally:
             if not self.dry_run:
                 self.download_service.wait_completion()
             self.web_bot.close_driver()
 
+    def _load_urls(self):
+        """Load URLs from runtime_config (URL or txt file)."""
+        if self.runtime_config.input_file:
+            with open(self.runtime_config.input_file) as file:
+                urls = [line.strip() for line in file if line.strip()]
+        else:
+            urls = [self.runtime_config.url]
+        return urls
+
 
 def main():
     args, log_level = parse_arguments()
+    if args.input_file:
+        check_input_file(args.input_file)
+
     app_config = ConfigManager(DEFAULT_CONFIG).load()
 
     setup_logging(log_level, log_path=app_config.paths.system_log)
@@ -49,6 +64,7 @@ def main():
 
     runtime_config = RuntimeConfig(
         url=args.url,
+        input_file=args.input_file,
         bot_type=args.bot_type,
         use_chrome_default_profile=args.use_default_chrome_profile,
         terminate=args.terminate,

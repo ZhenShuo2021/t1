@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import platform
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from dotenv import load_dotenv
 @dataclass
 class RuntimeConfig:
     url: str
+    input_file: str
     bot_type: str
     terminate: bool
     download_service: Any
@@ -151,7 +153,11 @@ class ConfigManager:
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Web scraper for albums and images.")
-    parser.add_argument("url", help="URL to scrape")
+
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("url", nargs="?", help="URL to scrape")
+    input_group.add_argument("-i", "--input-file", help="Path to txt file containing URL list")
+
     parser.add_argument(
         "--bot",
         dest="bot_type",
@@ -170,16 +176,15 @@ def parse_arguments():
         help="Use default chrome profile. Using default profile with an operating is not valid",
     )
 
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("-q", "--quiet", action="store_true", help="Quiet mode")
-    group.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
-    group.add_argument(
+    log_group = parser.add_mutually_exclusive_group()
+    log_group.add_argument("-q", "--quiet", action="store_true", help="Quiet mode")
+    log_group.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
+    log_group.add_argument(
         "--log-level", default=None, type=int, choices=range(1, 6), help="Set log level (1~5)"
     )
 
     args = parser.parse_args()
 
-    # convert log level
     if args.quiet:
         log_level = logging.ERROR
     elif args.verbose:
@@ -192,8 +197,16 @@ def parse_arguments():
             4: logging.WARNING,
             5: logging.CRITICAL,
         }
-        log_level = log_level_mapping[args.verbose]
+        log_level = log_level_mapping.get(args.log_level, logging.INFO)
     else:
         log_level = logging.INFO
 
     return args, log_level
+
+
+def check_input_file(input_path: str):
+    if input_path and not os.path.isfile(input_path):
+        logging.error("Input file %s does not exist.", input_path)
+        sys.exit(1)
+    else:
+        logging.info("Input file %s exists and is accessible.", input_path)

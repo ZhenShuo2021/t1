@@ -49,6 +49,7 @@ def setup_test_env(tmp_path):
 
     runtime_config = RuntimeConfig(
         url=test_url,
+        input_file="",
         bot_type=bot_type,
         terminate=terminate,
         download_service=download_service,
@@ -62,7 +63,7 @@ def setup_test_env(tmp_path):
     scraper = ScrapeManager(runtime_config, config, web_bot)
 
     # scraper.config.download.download_dir = str(test_download_dir)
-    return scraper, scraper.config.download.download_dir
+    return scraper, scraper.base_config.download.download_dir
 
 
 def test_download(setup_test_env):
