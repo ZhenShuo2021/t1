@@ -51,6 +51,7 @@ def setup_test_env(tmp_path):
         url=test_url,
         input_file="",
         bot_type=bot_type,
+        chrome_args=[],
         terminate=terminate,
         download_service=download_service,
         dry_run=dry_run,

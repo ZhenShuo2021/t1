@@ -44,7 +44,8 @@ class SeleniumBot(BaseBot):
         options = Options()
 
         chrome_path = [self.config.chrome.exec_path]
-        subprocess_cmd = chrome_path + DEFAULT_BOT_OPT
+        # "or" returns the first True element
+        subprocess_cmd = chrome_path + (self.runtime_config.chrome_args or DEFAULT_BOT_OPT)
 
         if not self.runtime_config.use_chrome_default_profile:
             user_data_dir = self.prepare_chrome_profile()

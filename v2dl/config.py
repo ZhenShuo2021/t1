@@ -16,6 +16,7 @@ class RuntimeConfig:
     url: str
     input_file: str
     bot_type: str
+    chrome_args: list[str]
     terminate: bool
     download_service: Any
     dry_run: bool
@@ -167,6 +168,13 @@ def parse_arguments():
         required=False,
         help="Type of bot to use (default: drission)",
     )
+
+    parser.add_argument(
+        "--chrome-args",
+        type=str,
+        help="Override Chrome arguments (example: '--arg1//--arg2//--arg3')",
+    )
+
     parser.add_argument("--dry-run", action="store_true", help="Dry run without downloading")
     parser.add_argument("--no-skip", action="store_true", help="Do not skip downloaded files")
     parser.add_argument("--terminate", action="store_true", help="Terminate chrome after scraping")
@@ -200,6 +208,8 @@ def parse_arguments():
         log_level = log_level_mapping.get(args.log_level, logging.INFO)
     else:
         log_level = logging.INFO
+
+    args.chrome_args = args.chrome_args.split("//") if args.chrome_args else None
 
     return args, log_level
 

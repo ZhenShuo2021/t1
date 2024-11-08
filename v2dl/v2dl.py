@@ -66,6 +66,7 @@ def main():
         url=args.url,
         input_file=args.input_file,
         bot_type=args.bot_type,
+        chrome_args=args.chrome_args,
         use_chrome_default_profile=args.use_default_chrome_profile,
         terminate=args.terminate,
         download_service=download_service,

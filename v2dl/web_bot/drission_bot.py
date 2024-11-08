@@ -19,6 +19,9 @@ class DrissionBot(BaseBot):
     def init_driver(self):
         # subprocess of chrome: Drission terminate chrome anyway
         co = ChromiumOptions()
+        if self.runtime_config.chrome_args is not None:
+            for conf in self.runtime_config.chrome_args:
+                co.set_argument(conf)
 
         if not self.runtime_config.use_chrome_default_profile:
             user_data_dir = self.prepare_chrome_profile()
