@@ -8,7 +8,10 @@
     "Drission",
     "isort",
     "lxml",
+    "memlimit",
     "Mqny",
+    "opslimit",
+    "pwhash",
     "pyautogui"
   ],
   "editor.fontSize": 14,
