@@ -2,6 +2,7 @@ import atexit
 import base64
 import os
 import secrets
+import sys
 import threading
 from datetime import datetime, timedelta
 
@@ -22,7 +23,8 @@ class Encryptor:
     SCRYPT_OPS_LIMIT = 2**20
     SCRYPT_MEM_LIMIT = 2**26
 
-    def __init__(self) -> None:
+    def __init__(self, logger) -> None:
+        self.logger = logger
         self.config = self._initialize_config()
         self.file_handler = SecureFileHandler()
         self.custom_env_path = os.path.join(ConfigManager.get_system_config_dir(), ".env")
@@ -32,6 +34,7 @@ class Encryptor:
     def _initialize_config(self) -> dict:
         """Initialize configuration settings."""
         base_dir = ConfigManager.get_system_config_dir()
+        self.logger.debug("Initializing config with base directory: %s", base_dir)
         return {
             "key_folder": os.path.join(base_dir, ".keys"),
             "env_path": os.path.join(base_dir, ".env"),
@@ -54,12 +57,14 @@ class Encryptor:
             memlimit=self.SCRYPT_MEM_LIMIT,
         )
 
+        self.logger.debug("Derived encryption key with salt: %s", salt.hex())
         box = SecretBox(derived_key)
         nonce = nacl_random(self.NONCE_BYTES)
         encrypted_master_key = box.encrypt(master_key, nonce)
 
         # Clean sensitive data
         derived_key = bytearray(len(derived_key))
+        self.logger.info("Master key encryption successful")
 
         return encrypted_master_key, salt, encryption_key
 
@@ -81,6 +86,7 @@ class Encryptor:
 
         # Clean sensitive data
         derived_key = bytearray(len(derived_key))
+        self.logger.info("Master key decryption successful")
 
         return master_key
 
@@ -88,6 +94,8 @@ class Encryptor:
         """Encrypt a password using the public key."""
         sealed_box = SealedBox(public_key)
         encrypted = sealed_box.encrypt(password.encode())
+        self.logger.info("Password encryption successful")
+
         return base64.b64encode(encrypted).decode("utf-8")
 
     def decrypt_password(self, encrypted_password: str, private_key: PrivateKey) -> str:
@@ -102,6 +110,7 @@ class Encryptor:
         if os.path.exists(self.config["private_key_file"]) and os.path.exists(
             self.config["public_key_file"]
         ):
+            self.logger.info("Key pair already exists.")
             return
 
         try:
@@ -122,10 +131,10 @@ class Encryptor:
 
             # Clean sensitive data
             self._secure_cleanup([master_key, encryption_key])
-
-            print("Key pair has been successfully generated and stored.")
+            self.logger.info("Key pair has been successfully generated and stored.")
 
         except Exception as e:
+            self.logger.error("Key generation failed: %s", str(e))
             raise SecurityError("Key generation failed") from e
 
     def _encrypt_private_key(self, private_key: PrivateKey, master_key: bytes) -> bytes:
@@ -138,6 +147,7 @@ class Encryptor:
         self, encrypted_master_key: bytes, encrypted_private_key: bytes, public_key: PublicKey
     ) -> None:
         """Store all keys securely."""
+        self.logger.debug("Storing keys securely.")
         self.file_handler.write_secure_file(self.config["master_key_file"], encrypted_master_key)
         self.file_handler.write_secure_file(self.config["private_key_file"], encrypted_private_key)
         self.file_handler.write_secure_file(
@@ -146,6 +156,7 @@ class Encryptor:
 
     def _store_encryption_params(self, salt: bytes, encryption_key: bytes) -> None:
         """Store encryption parameters in the environment file."""
+        self.logger.debug("Storing encryption parameters.")
         load_dotenv(self.config["env_path"])
         salt_b64 = base64.b64encode(salt).decode("utf-8")
         enc_key_b64 = base64.b64encode(encryption_key).decode("utf-8")
@@ -163,6 +174,7 @@ class Encryptor:
         """Load and validate the keypair."""
         try:
             # Load encrypted keys
+            self.logger.debug("Loading and validating keys.")
             encrypted_master_key = self.file_handler.read_secure_file(
                 self.config["master_key_file"]
             )
@@ -181,10 +193,12 @@ class Encryptor:
 
             # Clean sensitive data
             self._secure_cleanup([master_key])
+            self.logger.info("Keys loaded and validated successfully.")
 
             return private_key, public_key
 
         except Exception as e:
+            self.logger.error("Key loading failed: %s", str(e))
             raise SecurityError("Key loading failed") from e
 
     def load_and_validate_env(self) -> tuple[str, str]:
@@ -246,17 +260,18 @@ class AccountManager:
     MAX_QUOTA = 16
     ACCOUNT_FILE_PATH = os.path.join(ConfigManager.get_system_config_dir(), "accounts.yaml")
 
-    def __init__(self, encryptor):
+    def __init__(self, encryptor, logger):
         self.encryptor = encryptor
         self.lock = threading.RLock()
         self.accounts = self.load_yaml()
         self.check_accounts()
-
+        self.logger = logger
         atexit.register(self.save_yaml)
 
     def check_accounts(self):
         """檢查所有帳號的 last_download 是否超過 24 小時，若超過則清除 last_download 並將 quota 設為零."""
         now = datetime.now()
+        update = False
 
         for _, account in self.accounts.items():
             last_download = account.get("last_download")
@@ -265,6 +280,10 @@ class AccountManager:
                 if now - last_download_time > timedelta(hours=24):
                     account["last_download"] = "Null"
                     account["quota"] = 0
+                    update = True
+
+        if update:
+            self.save_yaml()
 
     def create_account(self, username: str, password: str, public_key: PublicKey):
         with self.lock:
@@ -275,12 +294,13 @@ class AccountManager:
                 "quota": 0,
                 "last_download": "Null",
             }
-        print(f"Account {username} has been created.")
+        self.logger.info("Account %s has been created.", username)
+        self.save_yaml()
 
     def verify_password(self, username: str, password: str, private_key: PrivateKey) -> bool:
         account = self.accounts.get(username)
         if not account:
-            print("Account does not exist.")
+            self.logger.error("Account does not exist.")
             return False
 
         encrypted_password = account.get("encrypted_password")
@@ -311,23 +331,24 @@ class AccountManager:
                     self.accounts[new_username or old_username]["encrypted_password"] = (
                         encrypted_password
                     )
-                print(f"Account {old_username} has been updated.")
+                self.logger.info("Account %s has been updated.", old_username)
             else:
-                print("Account not found.")
+                self.logger.error("Account not found.")
 
     def delete_account(self, username: str):
         with self.lock:
             if username in self.accounts:
                 del self.accounts[username]
-                print(f"Account {username} has been deleted.")
+                self.logger.info("Account %s has been deleted.", username)
             else:
-                print(f"Account {username} not found.")
+                self.logger.error("Account %s not found.", username)
+            self.save_yaml()
 
     def save_yaml(self):
         with self.lock:
             with open(self.ACCOUNT_FILE_PATH, "w") as file:
                 yaml.dump(self.accounts, file, default_flow_style=False)
-        print("Successfully update accounts information.")
+        # self.logger.info("Successfully update accounts information.")
 
     def load_yaml(self) -> dict:
         try:
@@ -344,8 +365,10 @@ class AccountManager:
         }
 
         if not valid_accounts:
-            print("No eligible accounts available.")
-            return "", ""
+            self.logger.error(
+                "No eligible accounts available. Might be exceeding account limits or no recorded account in v2dl."
+            )
+            sys.exit(1)
 
         sorted_accounts = sorted(valid_accounts.items(), key=lambda x: x[1]["quota"], reverse=True)
         highest_quota_account = sorted_accounts[0]
@@ -354,6 +377,19 @@ class AccountManager:
         dec_pw = self.encryptor.decrypt_password(enc_pw, private_key)
 
         return username, dec_pw
+
+    def update_account_field(self, username: str, field: str, new_value):
+        with self.lock:
+            account = self.accounts.get(username)
+            if account:
+                if field in account:
+                    account[field] = new_value
+                    self.logger.info("Updated %s for account %s.", field, username)
+                    self.save_yaml()
+                else:
+                    self.logger.error("Field '%s' does not exist in the account.", field)
+            else:
+                self.logger.error("Account %s not found.", username)
 
 
 class SecureFileHandler:

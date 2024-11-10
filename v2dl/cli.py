@@ -1,5 +1,6 @@
 # cli interface of _password.py
 import getpass
+import logging
 import os
 from collections import OrderedDict
 from typing import Any
@@ -122,9 +123,11 @@ def list_accounts(am: AccountManager) -> None:
 
 
 def main() -> None:
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
     clean_terminal()
-    encryptor = Encryptor()
-    am = AccountManager(encryptor)
+    encryptor = Encryptor(logger)
+    am = AccountManager(encryptor, logger)
     private_key, public_key = encryptor.load_keys()
 
     def execute_action(choice: str) -> bool:

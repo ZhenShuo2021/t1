@@ -108,7 +108,7 @@ class ScrapeHandler:
 
         while True:
             full_url = LinkParser.add_page_num(url, page)
-            html_content = self.web_bot.auto_page_scroll(full_url)
+            html_content = self.web_bot.auto_page_scroll(full_url, page_sleep=0)
             tree = LinkParser.parse_html(html_content, self.logger)
 
             if tree is None:

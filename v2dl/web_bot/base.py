@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from ..config import Config, RuntimeConfig
+from ..utils.security_utils import AccountManager, Encryptor
 
 
 class BaseBot(ABC):
@@ -15,8 +16,10 @@ class BaseBot(ABC):
         self.config = base_config
         self.close_browser = runtime_config.terminate
         self.logger = runtime_config.logger
-        self.email = os.getenv("V2PH_USERNAME")
-        self.password = os.getenv("V2PH_PASSWORD")
+
+        self.encryptor = Encryptor(self.logger)
+        self.account_manager = AccountManager(self.encryptor, self.logger)
+        self.private_key, self.public_key = self.encryptor.load_keys()
 
         self.new_profile = False
 

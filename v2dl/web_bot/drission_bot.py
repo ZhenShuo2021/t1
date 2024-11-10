@@ -1,6 +1,7 @@
 import random
 import sys
 import time
+from datetime import datetime
 
 from DrissionPage import ChromiumOptions, ChromiumPage
 from DrissionPage.common import wait_until
@@ -63,7 +64,6 @@ class DrissionBot(BaseBot):
         for attempt in range(max_retry):
             try:
                 self.page.get(url)
-                DriBehavior.random_sleep(1, 3)
 
                 # handle page redirection fail
                 if not self.handle_redirection_fail(url, max_retry, page_sleep):
@@ -74,12 +74,13 @@ class DrissionBot(BaseBot):
 
                 # handle challenges
                 # self.page.wait.load_start()
-                self.page.wait.ele_displayed("xpath://div[@class='album-photo my-2']", timeout=5)
+                # self.page.wait.ele_displayed("xpath://div[@class='album-photo my-2']", timeout=5)
                 if self.cloudflare.handle_simple_block(attempt, max_retry):
                     continue
 
                 # main business
                 self.handle_login()
+                self.handle_read_limit()
                 self.page.run_js("document.body.style.zoom='75%'")
                 scroll_down()
 
@@ -106,7 +107,9 @@ class DrissionBot(BaseBot):
         return self.page.html
 
     def handle_redirection_fail(self, url: str, max_retry: int, sleep_time: int) -> bool:
-        if self.page.url == url and self.page.states.is_alive:
+        # If read limit exceed, not a redirection fail.
+        # If not exceed read limit, check url.
+        if self.handle_read_limit() or (self.page.url == url and self.page.states.is_alive):
             return True
         retry = 1
         while retry <= max_retry:
@@ -131,15 +134,17 @@ class DrissionBot(BaseBot):
         if "用戶登錄" in self.page.html:
             self.logger.info("Login page detected - Starting login process")
             try:
+                self.email, self.password = self.account_manager.get_account(self.private_key)
                 if self.email is None or self.password is None:
                     self.logger.critical("Email and password not provided")
                     sys.exit("Automated login failed.")
 
                 # self.handle_cloudflare_recaptcha()
 
-                DriBehavior.random_sleep(0.1, 0.3)
                 email_field = self.page("#email")
                 password_field = self.page("#password")
+                email_field.clear(True)
+                password_field.clear(True)
 
                 DriBehavior.human_like_type(email_field, self.email)
                 DriBehavior.random_sleep(0.01, 0.3)
@@ -155,13 +160,13 @@ class DrissionBot(BaseBot):
                 )
                 login_button.click()
 
-                DriBehavior.random_sleep(3, 5)
+                DriBehavior.random_sleep(0, 3)
 
                 if "用戶登錄" not in self.page.html:
-                    self.logger.info("Login successful")
+                    self.logger.info("Account %s login successful", self.email)
                     success = True
                 else:
-                    self.logger.error("Login failed - Checking error messages")
+                    self.logger.info("Account %s login failed. Checking error messages", self.email)
                     self.check_login_errors()
                     return
 
@@ -180,13 +185,29 @@ class DrissionBot(BaseBot):
             sys.exit("Automated login failed.")
 
     def check_login_errors(self):
-        error_message = self.page.ele("@class=alert-danger")
+        error_message = self.page.s_ele("@class=alert-danger")
         if error_message:
             self.logger.error("Login error: %s", error_message.text)
         else:
-            self.logger.warning(
-                "No specific error message found - Login failed for unknown reasons"
+            self.logger.error("No alert message found - Login failed for unknown reasons")
+            sys.exit(1)
+
+    def handle_read_limit(self):
+        if self.check_read_limit():
+            self.click_logout()
+            self.account_manager.update_account_field(
+                self.email, "quota", self.account_manager.MAX_QUOTA
             )
+            self.account_manager.update_account_field(
+                self.email, "last_download", datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+            )
+            self.email, self.password = self.account_manager.get_account(self.private_key)
+
+    def check_read_limit(self) -> bool:
+        return self.page.url == "https://www.v2ph.com/user/upgrade"
+
+    def click_logout(self):
+        self.page.ele("@href=/user/logout").click()
 
 
 class DriCloudflareHandler:
@@ -235,9 +256,9 @@ class DriCloudflareHandler:
         """鬥志鬥勇失敗."""
         blocked = False
         try:
-            container = self.page.ele(".cloudflare-container")
-            turnstile_box = container.ele(".turnstile-box")
-            turnstile_div = turnstile_box.ele("#cf-turnstile")
+            container = self.page.s_ele(".cloudflare-container")
+            turnstile_box = container.s_ele(".turnstile-box")
+            turnstile_div = turnstile_box.s_ele("#cf-turnstile")
             pos = turnstile_div.rect.click_point  # type: ignore
             self.page.wait(2)
             # pyautogui.moveTo(pos[0], pos[1] + 61, duration=0.5)
