@@ -2,6 +2,7 @@
 import getpass
 import logging
 import os
+import sys
 from collections import OrderedDict
 from typing import Any
 
@@ -122,7 +123,7 @@ def list_accounts(am: AccountManager) -> None:
         print("No accounts available.")
 
 
-def main() -> None:
+def cli() -> None:
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     clean_terminal()
@@ -145,7 +146,7 @@ def main() -> None:
             list_accounts(am)
         elif choice == "quit":
             clean_terminal()
-            print("Exiting the program.")
+            print("Exiting the account management of v2dl.")
             return True
         else:
             print("Invalid choice, please try again.")
@@ -156,6 +157,8 @@ def main() -> None:
         if execute_action(choice):
             break
 
+    sys.exit(0)
+
 
 if __name__ == "__main__":
-    main()
+    cli()

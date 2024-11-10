@@ -159,7 +159,13 @@ def parse_arguments():
 
     input_group = parser.add_mutually_exclusive_group(required=True)
     input_group.add_argument("url", nargs="?", help="URL to scrape")
-    input_group.add_argument("-i", "--input-file", help="Path to txt file containing URL list")
+    input_group.add_argument(
+        "-i",
+        "--input-file",
+        metavar="PATH",
+        help="Path to txt file containing URL list to be downloaded",
+    )
+    input_group.add_argument("-a", "--account", action="store_true", help="Manage account")
 
     parser.add_argument(
         "--bot",
