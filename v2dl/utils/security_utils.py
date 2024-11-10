@@ -12,7 +12,7 @@ from nacl.pwhash import scrypt
 from nacl.secret import SecretBox
 from nacl.utils import random as nacl_random
 
-from .config import ConfigManager
+from ..config import ConfigManager
 
 
 class Encryptor:
@@ -27,6 +27,7 @@ class Encryptor:
         self.file_handler = SecureFileHandler()
         self.custom_env_path = os.path.join(ConfigManager.get_system_config_dir(), ".env")
         self.__ensure_secure_folder()
+        self._generate_keypair()
 
     def _initialize_config(self) -> dict:
         """Initialize configuration settings."""
@@ -96,7 +97,7 @@ class Encryptor:
         decrypted = sealed_box.decrypt(encrypted)
         return decrypted.decode()
 
-    def generate_keypair(self) -> None:
+    def _generate_keypair(self) -> None:
         """Generate and store a new keypair with the master key."""
         if os.path.exists(self.config["private_key_file"]) and os.path.exists(
             self.config["public_key_file"]

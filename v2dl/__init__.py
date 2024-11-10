@@ -3,7 +3,7 @@ from .config import Config, ConfigManager, RuntimeConfig
 from .error import DownloadError, FileProcessingError, ScrapeError
 from .logger import setup_logging
 from .scrapper import ScrapeHandler
-from .utils import ThreadingService
+from .utils.utils import ThreadingService
 from .v2dl import ScrapeManager
 from .web_bot import get_bot
 

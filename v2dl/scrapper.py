@@ -7,7 +7,7 @@ from lxml import html
 
 from .config import Config, RuntimeConfig
 from .const import BASE_URL, HEADERS
-from .utils import AlbumTracker, LinkParser, threading_download_job
+from .utils.utils import AlbumTracker, LinkParser, threading_download_job
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str

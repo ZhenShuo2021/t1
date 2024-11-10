@@ -5,7 +5,7 @@ from .const import DEFAULT_CONFIG
 from .error import ScrapeError
 from .logger import setup_logging
 from .scrapper import ScrapeHandler
-from .utils import ThreadingService
+from .utils.utils import ThreadingService
 from .web_bot import get_bot
 
 

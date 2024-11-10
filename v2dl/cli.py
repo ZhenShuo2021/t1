@@ -7,7 +7,7 @@ from typing import Any
 import questionary
 from nacl.public import PrivateKey, PublicKey
 
-from ._password import AccountManager, Encryptor
+from .utils.security_utils import AccountManager, Encryptor
 
 
 def display_menu() -> Any:
@@ -125,7 +125,6 @@ def main() -> None:
     clean_terminal()
     encryptor = Encryptor()
     am = AccountManager(encryptor)
-    encryptor.generate_keypair()
     private_key, public_key = encryptor.load_keys()
 
     def execute_action(choice: str) -> bool:
