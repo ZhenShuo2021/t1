@@ -1,0 +1,141 @@
+# cli interface of _password.py
+import getpass
+import os
+from collections import OrderedDict
+from typing import Any
+
+import questionary
+from nacl.public import PrivateKey, PublicKey
+
+from ._password import AccountManager, KeyManager
+
+
+def display_menu() -> Any:
+    choices = [
+        {"name": "Create Account", "value": "create"},
+        {"name": "Read Account", "value": "read"},
+        {"name": "Update Account", "value": "update"},
+        {"name": "Delete Account", "value": "delete"},
+        {"name": "Password Test", "value": "password"},
+        {"name": "List All Accounts", "value": "list"},
+        {"name": "Quit", "value": "quit"},
+    ]
+
+    answer = questionary.select("Please choose an action:", choices=choices).ask()
+    return answer
+
+
+def clean_terminal() -> None:
+    os.system("cls" if os.name == "nt" else "clear")
+
+
+def create_account(am: AccountManager, public_key: PublicKey) -> None:
+    clean_terminal()
+    print("Create Account")
+    username = input("Please enter the username: ")
+    if username == "":
+        return
+    password = getpass.getpass("Please enter the password: ")
+    am.create_account(username, password, public_key)
+
+
+def read_account(am: AccountManager) -> None:
+    clean_terminal()
+    print("Read Account")
+    username = input("Please enter the username: ")
+    account = am.read_account(username)
+    if account:
+        ordered_dict = OrderedDict()
+        ordered_dict["username"] = username
+        ordered_dict["encrypted_password"] = account["encrypted_password"]
+        for key, value in account.items():
+            if key not in ["username", "encrypted_password"]:
+                ordered_dict[key] = value
+
+        # Output OrderedDict
+        for key, value in ordered_dict.items():
+            print(f"{key}: {value}")
+    else:
+        print("Account not found.")
+
+
+def update_account(am: AccountManager, public_key: PublicKey, private_key: PrivateKey) -> None:
+    clean_terminal()
+    print("Update Account")
+    old_username = input("Please enter the old username: ")
+    password = getpass.getpass("Please enter the password: ")
+    if not am.verify_password(old_username, password, private_key):
+        return
+    new_username = input("Please enter the new username (leave blank to not update): ")
+    password = getpass.getpass("Please enter the new password (leave blank to not update): ")
+    am.update_account(public_key, old_username, new_username, password)
+
+
+def delete_account(am: AccountManager, private_key: PrivateKey) -> None:
+    clean_terminal()
+    print("Delete Account")
+    username = input("Please enter the username: ")
+    am.delete_account(private_key, username)
+
+
+def password_test(am: AccountManager, private_key: PrivateKey) -> None:
+    clean_terminal()
+    print("Password Test")
+    username = input("Please enter the username: ")
+    account = am.read_account(username)
+    if account:
+        password = getpass.getpass("Enter password: ")
+        am.verify_password(username, password, private_key)
+    else:
+        print("Account not found.")
+
+
+def list_accounts(am: AccountManager) -> None:
+    clean_terminal()
+    print("Account List")
+    accounts = am.load_yaml()
+    if accounts:
+        for username, info in accounts.items():
+            print(
+                f"Account: {username}, Quota: {info['quota'] or 'Null'}, Last Download: {info['last_download'] or 'Null'}, Created At: {info['created_at']}"
+            )
+    else:
+        print("No accounts available.")
+
+
+def main() -> None:
+    clean_terminal()
+    km = KeyManager()
+    am = AccountManager(km)
+    km.start_up()
+    private_key, public_key = km.load_keys()
+
+    def execute_action(choice: str) -> bool:
+        if choice == "create":
+            create_account(am, public_key)
+        elif choice == "read":
+            read_account(am)
+        elif choice == "update":
+            update_account(am, public_key, private_key)
+        elif choice == "delete":
+            delete_account(am, private_key)
+        elif choice == "password":
+            password_test(am, private_key)
+        elif choice == "list":
+            list_accounts(am)
+        elif choice == "quit":
+            clean_terminal()
+            print("Exiting the program.")
+            return True
+        else:
+            print("Invalid choice, please try again.")
+        return False
+
+    while True:
+        choice = display_menu()
+        if execute_action(choice):
+            break
+
+
+if __name__ == "__main__":
+    main()
