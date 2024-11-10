@@ -1,6 +1,7 @@
 import atexit
 import base64
 import os
+import random
 import secrets
 import sys
 import threading
@@ -270,17 +271,17 @@ class AccountManager:
         atexit.register(self.save_yaml)
 
     def check_accounts(self):
-        """檢查所有帳號的 last_download 是否超過 24 小時，若超過則清除 last_download 並將 quota 設為零."""
+        """檢查所有帳號的 exceed_time 是否超過 24 小時，若超過則清除 exceed_time 並將重置 exceed_quota."""
         now = datetime.now()
         update = False
 
         for _, account in self.accounts.items():
-            last_download = account.get("last_download")
-            if last_download and last_download != "Null":
-                last_download_time = datetime.strptime(last_download, "%Y-%m-%dT%H:%M:%S")
-                if now - last_download_time > timedelta(hours=24):
-                    account["last_download"] = "Null"
-                    account["quota"] = 0
+            exceed_time = account.get("exceed_time")
+            if exceed_time and exceed_time != "Null":
+                exceed_time_time = datetime.strptime(exceed_time, "%Y-%m-%dT%H:%M:%S")
+                if now - exceed_time_time > timedelta(hours=24):
+                    account["exceed_time"] = "Null"
+                    account["exceed_quota"] = False
                     update = True
 
         if update:
@@ -292,8 +293,8 @@ class AccountManager:
             self.accounts[username] = {
                 "encrypted_password": encrypted_password,
                 "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-                "quota": 0,
-                "last_download": "Null",
+                "exceed_quota": False,
+                "exceed_time": "Null",
             }
         self.logger.info("Account %s has been created.", username)
         self.save_yaml()
@@ -316,7 +317,7 @@ class AccountManager:
     def read_account(self, username: str) -> dict:
         return self.accounts.get(username, {})
 
-    def update_account(
+    def edit_account(
         self,
         public_key: PublicKey,
         old_username: str,
@@ -359,27 +360,19 @@ class AccountManager:
             return {}
 
     def get_account(self, private_key: PrivateKey) -> tuple[str, str]:
-        valid_accounts = {
-            username: acc
-            for username, acc in self.accounts.items()
-            if acc["quota"] < self.MAX_QUOTA
-        }
+        eligible_accounts = {k: v for k, v in self.accounts.items() if not v["exceed_quota"]}
 
-        if not valid_accounts:
-            self.logger.error(
-                "No eligible accounts available. Might be exceeding account limits or no recorded account in v2dl."
-            )
+        if not eligible_accounts:
+            self.logger.error("All accounts have exhausted their reading quota.")
             sys.exit(1)
 
-        sorted_accounts = sorted(valid_accounts.items(), key=lambda x: x[1]["quota"], reverse=True)
-        highest_quota_account = sorted_accounts[0]
-        username, account = highest_quota_account
+        username, account = random.choice(list(eligible_accounts.items()))
         enc_pw = account["encrypted_password"]
         dec_pw = self.encryptor.decrypt_password(enc_pw, private_key)
 
         return username, dec_pw
 
-    def update_account_field(self, username: str, field: str, new_value):
+    def update(self, username: str, field: str, new_value):
         with self.lock:
             account = self.accounts.get(username)
             if account:

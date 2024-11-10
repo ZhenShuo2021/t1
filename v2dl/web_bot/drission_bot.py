@@ -192,9 +192,7 @@ class DrissionBot(BaseBot):
         if self.check_read_limit():
             # click logout
             self.page('x://ul[@class="nav justify-content-end"]//a[@href="/user/logout"]').click()
-            self.account_manager.update_account_field(
-                self.email, "quota", self.account_manager.MAX_QUOTA
-            )
+            self.account_manager.update(self.email, "exceed_quota", True)
             self.email, self.password = self.account_manager.get_account(self.private_key)
 
     def check_read_limit(self) -> bool:

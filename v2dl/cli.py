@@ -69,7 +69,7 @@ def update_account(am: AccountManager, public_key: PublicKey, private_key: Priva
         return
     new_username = input("Please enter the new username (leave blank to not update): ")
     password = getpass.getpass("Please enter the new password (leave blank to not update): ")
-    am.update_account(public_key, old_username, new_username, password)
+    am.edit_account(public_key, old_username, new_username, password)
 
 
 def delete_account(am: AccountManager, private_key: PrivateKey) -> None:
@@ -116,7 +116,7 @@ def list_accounts(am: AccountManager) -> None:
     if accounts:
         for username, info in accounts.items():
             print(
-                f"Account: {username}, Quota: {info['quota'] or 'Null'}, Last Download: {info['last_download'] or 'Null'}, Created At: {info['created_at']}"
+                f"Account: {username}, Exceed quota: {info['exceed_quota'] or 'Null'}, Exceed time: {info['exceed_time'] or 'Null'}, Created At: {info['created_at']}"
             )
     else:
         print("No accounts available.")
