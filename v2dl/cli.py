@@ -7,7 +7,7 @@ from typing import Any
 import questionary
 from nacl.public import PrivateKey, PublicKey
 
-from ._password import AccountManager, KeyManager
+from ._password import AccountManager, Encryptor
 
 
 def display_menu() -> Any:
@@ -75,7 +75,26 @@ def delete_account(am: AccountManager, private_key: PrivateKey) -> None:
     clean_terminal()
     print("Delete Account")
     username = input("Please enter the username: ")
-    am.delete_account(private_key, username)
+    accounts = am.load_yaml()
+    if username in accounts:
+        password = getpass.getpass("Please enter the password: ")
+        if not am.verify_password(username, password, private_key):
+            return
+
+        confirm_delete = questionary.select(
+            f"Are you sure you want to delete the account {username}?",
+            choices=[
+                "Confirm",
+                "Cancel",
+            ],
+        ).ask()
+
+        if confirm_delete == "Confirm":
+            am.delete_account(accounts, username)
+        else:
+            print("Operation canceled.")
+    else:
+        print("Account not found.")
 
 
 def password_test(am: AccountManager, private_key: PrivateKey) -> None:
@@ -105,10 +124,10 @@ def list_accounts(am: AccountManager) -> None:
 
 def main() -> None:
     clean_terminal()
-    km = KeyManager()
-    am = AccountManager(km)
-    km.start_up()
-    private_key, public_key = km.load_keys()
+    encryptor = Encryptor()
+    am = AccountManager(encryptor)
+    encryptor.generate_keypair()
+    private_key, public_key = encryptor.load_keys()
 
     def execute_action(choice: str) -> bool:
         if choice == "create":
