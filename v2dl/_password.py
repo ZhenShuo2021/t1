@@ -1,7 +1,9 @@
+import atexit
 import base64
 import os
 import secrets
-from datetime import datetime
+import threading
+from datetime import datetime, timedelta
 
 import yaml
 from dotenv import load_dotenv, set_key
@@ -66,7 +68,11 @@ class Encryptor:
         """Decrypt the master key using scrypt."""
         # Derive the decryption key using scrypt
         derived_key = scrypt.kdf(
-            self.KEY_BYTES, encryption_key, salt, opslimit=2**20, memlimit=2**26
+            self.KEY_BYTES,
+            encryption_key,
+            salt,
+            opslimit=self.SCRYPT_OPS_LIMIT,
+            memlimit=self.SCRYPT_MEM_LIMIT,
         )
 
         box = SecretBox(derived_key)
@@ -236,35 +242,47 @@ class Encryptor:
 
 
 class AccountManager:
-    def __init__(self, encryptor: Encryptor):
+    MAX_QUOTA = 16
+    ACCOUNT_FILE_PATH = os.path.join(ConfigManager.get_system_config_dir(), "accounts.yaml")
+
+    def __init__(self, encryptor):
         self.encryptor = encryptor
+        self.lock = threading.RLock()
+        self.accounts = self.load_yaml()
+        self.check_accounts()
 
-    def create_account(self, username: str, password: str, public_key: PublicKey) -> dict:
-        accounts = self.load_yaml()
+        atexit.register(self.save_yaml)
 
-        # 使用 SealedBox 加密密碼
-        encrypted_password = self.encryptor.encrypt_password(password, public_key)
+    def check_accounts(self):
+        """檢查所有帳號的 last_download 是否超過 24 小時，若超過則清除 last_download 並將 quota 設為零."""
+        now = datetime.now()
 
-        accounts[username] = {
-            "encrypted_password": encrypted_password,
-            "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            "quota": "Null",
-            "last_download": "Null",
-        }
-        self.save_yaml(accounts)
+        for _, account in self.accounts.items():
+            last_download = account.get("last_download")
+            if last_download and last_download != "Null":
+                last_download_time = datetime.strptime(last_download, "%Y-%m-%dT%H:%M:%S")
+                if now - last_download_time > timedelta(hours=24):
+                    account["last_download"] = "Null"
+                    account["quota"] = 0
+
+    def create_account(self, username: str, password: str, public_key: PublicKey):
+        with self.lock:
+            encrypted_password = self.encryptor.encrypt_password(password, public_key)
+            self.accounts[username] = {
+                "encrypted_password": encrypted_password,
+                "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                "quota": 0,
+                "last_download": "Null",
+            }
         print(f"Account {username} has been created.")
-        return accounts
 
     def verify_password(self, username: str, password: str, private_key: PrivateKey) -> bool:
-        accounts = self.load_yaml()
-        account = accounts.get(username)
+        account = self.accounts.get(username)
         if not account:
             print("Account does not exist.")
             return False
 
         encrypted_password = account.get("encrypted_password")
-
-        # 解密密碼
         decrypted_password = self.encryptor.decrypt_password(encrypted_password, private_key)
         if decrypted_password == password:
             print("Password is correct.")
@@ -274,13 +292,7 @@ class AccountManager:
             return False
 
     def read_account(self, username: str) -> dict:
-        accounts = self.load_yaml()
-        account = accounts.get(username)
-        if account:
-            return account
-        else:
-            print("Account not found.")
-            return {}
+        return self.accounts.get(username, {})
 
     def update_account(
         self,
@@ -288,41 +300,59 @@ class AccountManager:
         old_username: str,
         new_username: str = "",
         new_password: str = "",
-    ) -> dict:
-        accounts = self.load_yaml()
+    ):
+        with self.lock:
+            if old_username in self.accounts:
+                if new_username:
+                    self.accounts[new_username] = self.accounts.pop(old_username)
+                if new_password:
+                    encrypted_password = self.encryptor.encrypt_password(new_password, public_key)
+                    self.accounts[new_username or old_username]["encrypted_password"] = (
+                        encrypted_password
+                    )
+                print(f"Account {old_username} has been updated.")
+            else:
+                print("Account not found.")
 
-        if old_username in accounts:
-            if new_username:
-                accounts[new_username] = accounts.pop(old_username)
+    def delete_account(self, username: str):
+        with self.lock:
+            if username in self.accounts:
+                del self.accounts[username]
+                print(f"Account {username} has been deleted.")
+            else:
+                print(f"Account {username} not found.")
 
-            if new_password:
-                encrypted_password = self.encryptor.encrypt_password(new_password, public_key)
-                accounts[new_username or old_username]["encrypted_password"] = encrypted_password
-
-            self.save_yaml(accounts)
-            print(f"Account {old_username} has been updated.")
-        else:
-            print(f"{old_username in accounts}")
-            print(f"{old_username, accounts.keys()}")
-            print("Account not found.")
-        return accounts
-
-    def delete_account(self, accounts: dict, username: str) -> None:
-        self.save_yaml(accounts)
-        print(f"Account {username} has been deleted.")
-
-    def save_yaml(self, data: dict) -> None:
-        filename = os.path.join(ConfigManager.get_system_config_dir(), "accounts.yaml")
-        with open(filename, "w") as file:
-            yaml.dump(data, file, default_flow_style=False)
+    def save_yaml(self):
+        with self.lock:
+            with open(self.ACCOUNT_FILE_PATH, "w") as file:
+                yaml.dump(self.accounts, file, default_flow_style=False)
+        print("Successfully update accounts information.")
 
     def load_yaml(self) -> dict:
-        filename = os.path.join(ConfigManager.get_system_config_dir(), "accounts.yaml")
         try:
-            with open(filename) as file:
+            with open(self.ACCOUNT_FILE_PATH) as file:
                 return yaml.safe_load(file) or {}
         except FileNotFoundError:
             return {}
+
+    def get_account(self, private_key: PrivateKey) -> tuple[str, str]:
+        valid_accounts = {
+            username: acc
+            for username, acc in self.accounts.items()
+            if acc["quota"] < self.MAX_QUOTA
+        }
+
+        if not valid_accounts:
+            print("No eligible accounts available.")
+            return "", ""
+
+        sorted_accounts = sorted(valid_accounts.items(), key=lambda x: x[1]["quota"], reverse=True)
+        highest_quota_account = sorted_accounts[0]
+        username, account = highest_quota_account
+        enc_pw = account["encrypted_password"]
+        dec_pw = self.encryptor.decrypt_password(enc_pw, private_key)
+
+        return username, dec_pw
 
 
 class SecureFileHandler:

@@ -75,8 +75,7 @@ def delete_account(am: AccountManager, private_key: PrivateKey) -> None:
     clean_terminal()
     print("Delete Account")
     username = input("Please enter the username: ")
-    accounts = am.load_yaml()
-    if username in accounts:
+    if username in am.accounts:
         password = getpass.getpass("Please enter the password: ")
         if not am.verify_password(username, password, private_key):
             return
@@ -90,7 +89,7 @@ def delete_account(am: AccountManager, private_key: PrivateKey) -> None:
         ).ask()
 
         if confirm_delete == "Confirm":
-            am.delete_account(accounts, username)
+            am.delete_account(username)
         else:
             print("Operation canceled.")
     else:
@@ -112,7 +111,7 @@ def password_test(am: AccountManager, private_key: PrivateKey) -> None:
 def list_accounts(am: AccountManager) -> None:
     clean_terminal()
     print("Account List")
-    accounts = am.load_yaml()
+    accounts = am.accounts
     if accounts:
         for username, info in accounts.items():
             print(
