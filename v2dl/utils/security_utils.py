@@ -14,6 +14,7 @@ from nacl.secret import SecretBox
 from nacl.utils import random as nacl_random
 
 from ..config import ConfigManager
+from ..error import SecurityError
 
 
 class Encryptor:
@@ -407,7 +408,3 @@ class SecureFileHandler:
             raise SecurityError(f"Required file not found: {path}")
         with open(path, "rb") as f:
             return f.read()
-
-
-class SecurityError(Exception):
-    pass
