@@ -58,8 +58,8 @@ class SeleniumBot(BaseBot):
         try:
             self.driver = webdriver.Chrome(service=Service(), options=options)
         except Exception as e:
-            self.logger.error("無法啟動 Selenium WebDriver: %s", e)
-            sys.exit("無法啟動 Selenium WebDriver")
+            self.logger.error("Unable to start Selenium WebDriver: %s", e)
+            sys.exit("Unable to start Selenium WebDriver")
 
         # width = random.randint(1024, 1920)
         # height = random.randint(768, 1080)
@@ -124,7 +124,7 @@ class SeleniumBot(BaseBot):
                     e,
                 )
 
-            self.logger.debug("捲動結束，暫停作業避免封鎖")
+            self.logger.debug("Scrolling finished, pausing to avoid blocking")
             SelBehavior.random_sleep(page_sleep, page_sleep + 5)
 
         if not response:
@@ -366,9 +366,11 @@ class SelScroll(BaseScroll):
 
         while attempts < max_attempts:
             SelBehavior.random_sleep(1, 2)
-            self.driver.execute_script(
-                f"window.scrollBy({{top: {scroll_length()}, behavior: 'smooth'}});"
+            scroll = scroll_length()
+            self.logger.debug(
+                "Current position: %d, scrolling down by %d pixels", last_position, scroll
             )
+            self.driver.execute_script(f"window.scrollBy({{top: {scroll}, behavior: 'smooth'}});")
             new_position = self.driver.execute_script("return window.pageYOffset;")
             if new_position == last_position:
                 break
@@ -376,7 +378,7 @@ class SelScroll(BaseScroll):
             attempts += 1
 
     def old_scroll_to_bottom(self):
-        self.logger.info("開始捲動頁面")
+        self.logger.info("Start scrolling the page")
         scroll_attempts = 0
         max_attempts = 45
 
@@ -394,7 +396,7 @@ class SelScroll(BaseScroll):
             time.sleep(0.75)
 
             if scroll_pos_init >= scroll_pos_end:
-                self.logger.debug("已到達頁面底部")
+                self.logger.debug("Reached the bottom of the page")
                 break
 
             scroll_pos_init = scroll_pos_end
@@ -409,16 +411,21 @@ class SelScroll(BaseScroll):
             if self.successive_scroll_count >= self.max_successive_scrolls:
                 pause_time = random.uniform(3, 7)
                 self.logger.debug(
-                    "連續捲動 %d 次，暫停 %.2f 秒", self.successive_scroll_count, pause_time
+                    "Scrolled %d times, pausing for %.2f seconds",
+                    self.successive_scroll_count,
+                    pause_time,
                 )
                 time.sleep(pause_time)
                 self.successive_scroll_count = 0
                 self.max_successive_scrolls = random.randint(3, 7)
 
         if scroll_attempts == max_attempts:
-            self.logger.info("達到最大嘗試次數 (%d)，捲動結束，可能未完全捲動到底", max_attempts)
+            self.logger.info(
+                "Reached maximum attempts (%d), scrolling finished, may not have fully reached the bottom",
+                max_attempts,
+            )
         else:
-            self.logger.info("頁面捲動完成")
+            self.logger.info("Page scroll completed")
 
     def perform_scroll_action(self):
         action = random.choices(
@@ -434,9 +441,9 @@ class SelScroll(BaseScroll):
                 self.config.download.max_scroll_length,
             )
             target_position = current_position + scroll_length
-            self.logger.debug("嘗試向下捲動 %d 像素", scroll_length)
+            self.logger.debug("Trying to scroll down %d pixels", scroll_length)
             actual_position = self.safe_scroll(target_position)
-            self.logger.debug("實際捲動到 %d 像素", actual_position)
+            self.logger.debug("Actually scrolled to %d pixels", actual_position)
             time.sleep(random.uniform(*BaseBehavior.pause_time))
         elif action == "scroll_up":
             scroll_length = random.randint(
@@ -444,18 +451,18 @@ class SelScroll(BaseScroll):
                 self.config.download.max_scroll_length,
             )
             target_position = max(0, current_position - scroll_length)
-            self.logger.debug("嘗試向上捲動 %d 像素", scroll_length)
+            self.logger.debug("Trying to scroll up %d pixels", scroll_length)
             actual_position = self.safe_scroll(target_position)
-            self.logger.debug("實際捲動到 %d 像素", actual_position)
+            self.logger.debug("Actually scrolled to %d pixels", actual_position)
         elif action == "pause":
             pause_time = random.uniform(1, 3)
-            self.logger.debug("暫停 %.2f 秒", pause_time)
+            self.logger.debug("Pausing for %.2f seconds", pause_time)
             time.sleep(pause_time)
         elif action == "jump":
             jump_position = current_position + random.randint(100, 500)
-            self.logger.debug("嘗試跳轉到位置 %d", jump_position)
+            self.logger.debug("Trying to jump to position %d", jump_position)
             actual_position = self.safe_scroll(jump_position)
-            self.logger.debug("實際跳轉到 %d", actual_position)
+            self.logger.debug("Actually jumped to %d", actual_position)
 
     def safe_scroll(self, target_position):
         current_position = self.get_scroll_position()
@@ -472,7 +479,9 @@ class SelScroll(BaseScroll):
             new_position = self.get_scroll_position()
             if new_position == current_position:
                 self.logger.debug(
-                    "無法繼續捲動，目標: %d，當前: %d", target_position, current_position
+                    "Cannot continue scrolling, target: %d, current: %d",
+                    target_position,
+                    current_position,
                 )
                 break
             current_position = new_position
@@ -491,4 +500,4 @@ class SelScroll(BaseScroll):
                 lambda d: d.execute_script("return document.readyState") == "complete"
             )
         except TimeoutException:
-            self.logger.warning("等待新內容加載超時")
+            self.logger.warning("Timeout waiting for new content to load")

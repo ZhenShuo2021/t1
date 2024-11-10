@@ -84,7 +84,7 @@ class DrissionBot(BaseBot):
                 scroll_down()
 
                 # Sleep to avoid Cloudflare blocking
-                self.logger.debug("捲動結束，暫停作業避免封鎖")
+                self.logger.debug("Scrolling finished, pausing to avoid blocking")
                 DriBehavior.random_sleep(page_sleep, page_sleep + 5)
                 break
 
@@ -309,8 +309,13 @@ class DriScroll(BaseScroll):
         )
 
         while attempts < max_attempts:
-            self.page.run_js(f"window.scrollBy({{top: {scroll_length()}, behavior: 'smooth'}});")
+            scroll = scroll_length()
+            self.logger.debug(
+                "Current position: %d, scrolling down by %d pixels", last_position, scroll
+            )
+            self.page.run_js(f"window.scrollBy({{top: {scroll}, behavior: 'smooth'}});")
             self.page.wait(*wait_time)
+
             new_position = self.page.run_js("return window.pageYOffset;")
             if new_position == last_position:
                 break
@@ -318,7 +323,7 @@ class DriScroll(BaseScroll):
             attempts += 1
 
     def old_scroll_to_bottom(self):
-        self.logger.info("開始捲動頁面")
+        self.logger.info("Start scrolling the page")
         scroll_attempts = 0
         max_attempts = 45
         same_position_count = 0
@@ -336,7 +341,8 @@ class DriScroll(BaseScroll):
                 same_position_count += 1
                 if same_position_count >= max_same_position_count:
                     self.logger.debug(
-                        "連續三次偵測到相同位置，停止捲動。總共捲動 %d 次", scroll_attempts
+                        "Detected the same position three times in a row, stopping scrolling. Scrolled a total of %d times",
+                        scroll_attempts,
                     )
                     break
             else:
@@ -352,7 +358,9 @@ class DriScroll(BaseScroll):
             if self.successive_scroll_count >= self.max_successive_scrolls:
                 pause_time = random.uniform(3, 7)
                 self.logger.debug(
-                    "連續捲動 %d 次，暫停 %.2f 秒", self.successive_scroll_count, pause_time
+                    "Scrolled %d times, pausing for %.2f seconds",
+                    self.successive_scroll_count,
+                    pause_time,
                 )
                 time.sleep(pause_time)
                 scrolled_up = False
@@ -360,9 +368,12 @@ class DriScroll(BaseScroll):
                 self.max_successive_scrolls = random.randint(3, 7)
 
         if scroll_attempts == max_attempts:
-            self.logger.info("達到最大嘗試次數 (%d)，捲動結束，可能未完全捲動到底", max_attempts)
+            self.logger.info(
+                "Reached maximum attempts (%d), scrolling finished, may not have fully reached the bottom",
+                max_attempts,
+            )
         else:
-            self.logger.info("頁面捲動完成")
+            self.logger.info("Page scroll completed")
 
     def perform_scroll_action(self, scrolled_up):
         while True:
@@ -381,7 +392,7 @@ class DriScroll(BaseScroll):
                 self.config.download.min_scroll_step,
                 self.config.download.max_scroll_step,
             )
-            self.logger.debug("嘗試向下捲動 %d", scroll_length)
+            self.logger.debug("Trying to scroll down %d", scroll_length)
             self.page.scroll.down(pixel=scroll_length)
             time.sleep(random.uniform(*BaseBehavior.pause_time))
         elif action == "scroll_up":
@@ -389,14 +400,14 @@ class DriScroll(BaseScroll):
                 self.config.download.min_scroll_step,
                 self.config.download.max_scroll_step,
             )
-            self.logger.debug("嘗試向上捲動 %d", scroll_length)
+            self.logger.debug("Trying to scroll up %d", scroll_length)
             self.page.scroll.up(pixel=scroll_length)
         elif action == "pause":
             pause_time = random.uniform(1, 3)
-            self.logger.debug("暫停 %.2f 秒", pause_time)
+            self.logger.debug("Pausing for %.2f seconds", pause_time)
             time.sleep(pause_time)
         elif action == "jump":
-            self.logger.debug("跳轉到頁面底部")
+            self.logger.debug("Jumping to the bottom of the page")
             self.page.scroll.to_bottom()
             # self.page.scroll.to_see("@class=album-photo my-2")
 
@@ -416,7 +427,7 @@ class DriScroll(BaseScroll):
     #         new_position = self.get_current_position()
     #         if new_position == current_position:
     #             self.logger.debug(
-    #                 "無法繼續捲動，目標: %d，當前: %d", target_position, current_position
+    #                 "Cannot continue scrolling, target: %d, current: %d", target_position, current_position
     #             )
     #             break
     #         current_position = new_position
@@ -425,12 +436,12 @@ class DriScroll(BaseScroll):
 
     def get_current_position(self):
         page_location = self.page.run_js("return window.pageYOffset;")
-        self.logger.debug("目前垂直位置 %d", page_location)
+        self.logger.debug("Current vertical position %d", page_location)
         return page_location
 
     def get_page_height(self):
         page_height = self.page.run_js("return document.body.scrollHeight;")
-        # self.logger.debug("頁面總高度 %d", page_height)
+        self.logger.debug("Total page height %d", page_height)
         return page_height
 
     def wait_for_content_load(self):
@@ -438,4 +449,4 @@ class DriScroll(BaseScroll):
             # wait until the callable return true. default time_out=10
             wait_until(lambda: self.page.states.ready_state == "complete", timeout=5)
         except TimeoutError:
-            self.logger.warning("等待新內容加載超時")
+            self.logger.warning("Timeout waiting for new content to load")

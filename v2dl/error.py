@@ -9,5 +9,6 @@ class FileProcessingError(ScrapeError):
 class DownloadError(ScrapeError):
     """Downloading fail."""
 
+
 class SecurityError(Exception):
     """Password encryption/decryption fail."""
