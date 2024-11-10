@@ -356,6 +356,26 @@ class SelScroll(BaseScroll):
         self.driver = driver
 
     def scroll_to_bottom(self):
+        max_attempts = 10
+        attempts = 0
+        last_position = -123459
+        scroll_length = lambda: random.randint(
+            self.config.download.min_scroll_length,
+            self.config.download.max_scroll_length,
+        )
+
+        while attempts < max_attempts:
+            SelBehavior.random_sleep(1, 2)
+            self.driver.execute_script(
+                f"window.scrollBy({{top: {scroll_length()}, behavior: 'smooth'}});"
+            )
+            new_position = self.driver.execute_script("return window.pageYOffset;")
+            if new_position == last_position:
+                break
+            last_position = new_position
+            attempts += 1
+
+    def old_scroll_to_bottom(self):
         self.logger.info("開始捲動頁面")
         scroll_attempts = 0
         max_attempts = 45

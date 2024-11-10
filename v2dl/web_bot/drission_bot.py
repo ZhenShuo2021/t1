@@ -1,7 +1,6 @@
 import random
 import sys
 import time
-from datetime import datetime
 
 from DrissionPage import ChromiumOptions, ChromiumPage
 from DrissionPage.common import wait_until
@@ -33,7 +32,7 @@ class DrissionBot(BaseBot):
         else:
             co.use_system_user_path()
 
-        self.page = ChromiumPage(addr_or_opts=co)
+        self.page = ChromiumPage(addr_or_opts=co, timeout=0.8)  # type: ignore
         self.page.set.scroll.smooth(on_off=True)
         self.page.set.scroll.wait_complete(on_off=True)
 
@@ -109,7 +108,7 @@ class DrissionBot(BaseBot):
     def handle_redirection_fail(self, url: str, max_retry: int, sleep_time: int) -> bool:
         # If read limit exceed, not a redirection fail.
         # If not exceed read limit, check url.
-        if self.handle_read_limit() or (self.page.url == url and self.page.states.is_alive):
+        if self.check_read_limit() or (self.page.url == url and self.page.states.is_alive):
             return True
         retry = 1
         while retry <= max_retry:
@@ -140,7 +139,6 @@ class DrissionBot(BaseBot):
                     sys.exit("Automated login failed.")
 
                 # self.handle_cloudflare_recaptcha()
-
                 email_field = self.page("#email")
                 password_field = self.page("#password")
                 email_field.clear(True)
@@ -156,13 +154,11 @@ class DrissionBot(BaseBot):
                 # remember_checkbox.click()
 
                 login_button = self.page(
-                    'x://button[contains(text(), "登錄") and @class="btn btn-primary btn-block"]'
+                    'x://button[@type="submit" and @class="btn btn-primary btn-block"]'
                 )
                 login_button.click()
 
-                DriBehavior.random_sleep(0, 3)
-
-                if "用戶登錄" not in self.page.html:
+                if not self.page('x://a[@href="/site/recovery-password"]'):
                     self.logger.info("Account %s login successful", self.email)
                     success = True
                 else:
@@ -185,7 +181,7 @@ class DrissionBot(BaseBot):
             sys.exit("Automated login failed.")
 
     def check_login_errors(self):
-        error_message = self.page.s_ele("@class=alert-danger")
+        error_message = self.page('x://div[@class="alert-danger"]')
         if error_message:
             self.logger.error("Login error: %s", error_message.text)
         else:
@@ -194,12 +190,10 @@ class DrissionBot(BaseBot):
 
     def handle_read_limit(self):
         if self.check_read_limit():
-            self.click_logout()
+            # click logout
+            self.page('x://ul[@class="nav justify-content-end"]//a[@href="/user/logout"]').click()
             self.account_manager.update_account_field(
                 self.email, "quota", self.account_manager.MAX_QUOTA
-            )
-            self.account_manager.update_account_field(
-                self.email, "last_download", datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
             )
             self.email, self.password = self.account_manager.get_account(self.private_key)
 
@@ -307,6 +301,25 @@ class DriScroll(BaseScroll):
         self.page.set.scroll.smooth(on_off=True)
 
     def scroll_to_bottom(self):
+        attempts = 0
+        max_attempts = 10
+        wait_time = (1, 2)
+        last_position = -123459
+        scroll_length = lambda: random.randint(
+            self.config.download.min_scroll_length,
+            self.config.download.max_scroll_length,
+        )
+
+        while attempts < max_attempts:
+            self.page.run_js(f"window.scrollBy({{top: {scroll_length()}, behavior: 'smooth'}});")
+            self.page.wait(*wait_time)
+            new_position = self.page.run_js("return window.pageYOffset;")
+            if new_position == last_position:
+                break
+            last_position = new_position
+            attempts += 1
+
+    def old_scroll_to_bottom(self):
         self.logger.info("開始捲動頁面")
         scroll_attempts = 0
         max_attempts = 45
