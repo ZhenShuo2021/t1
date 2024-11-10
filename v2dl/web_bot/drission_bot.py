@@ -130,7 +130,7 @@ class DrissionBot(BaseBot):
 
     def handle_login(self):
         success = False
-        if "用戶登錄" in self.page.html:
+        if self.page("x://h1[@class='h4 text-secondary mb-4 login-box-msg']"):
             self.logger.info("Login page detected - Starting login process")
             try:
                 self.email, self.password = self.account_manager.get_account(self.private_key)
@@ -181,11 +181,11 @@ class DrissionBot(BaseBot):
             sys.exit("Automated login failed.")
 
     def check_login_errors(self):
-        error_message = self.page('x://div[@class="alert-danger"]')
+        error_message = self.page('x://div[@class="errorMessage"]')
         if error_message:
             self.logger.error("Login error: %s", error_message.text)
         else:
-            self.logger.error("No alert message found - Login failed for unknown reasons")
+            self.logger.error("Login failed for unknown reasons")
             sys.exit(1)
 
     def handle_read_limit(self):

@@ -10,6 +10,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC  # noqa: N812
 from selenium.webdriver.support.ui import WebDriverWait
@@ -154,7 +155,9 @@ class SeleniumBot(BaseBot):
 
     def handle_login(self):
         success = False
-        if "用戶登錄" in self.driver.page_source:
+        if self.driver.find_elements(
+            By.XPATH, "//h1[@class='h4 text-secondary mb-4 login-box-msg']"
+        ):
             self.logger.info("Login page detected - Starting login process")
             try:
                 self.email, self.password = self.account_manager.get_account(self.private_key)
@@ -162,19 +165,19 @@ class SeleniumBot(BaseBot):
                     self.logger.critical("Email and password not provided")
                     sys.exit("Automated login failed.")
 
-                email_field = WebDriverWait(self.driver, 10).until(
-                    EC.presence_of_element_located((By.ID, "email"))
-                )
-                BaseBehavior.random_sleep(0.1, 0.3)
+                email_field = self.driver.find_element(By.ID, "email")
                 password_field = self.driver.find_element(By.ID, "password")
+                BaseBehavior.random_sleep(0.5, 1)
 
-                SelBehavior.human_like_mouse_movement(self.driver, email_field)
-                SelBehavior.human_like_click(self.driver, email_field)
+                # SelBehavior.human_like_mouse_movement(self.driver, email_field)
+                password_field.send_keys(Keys.SHIFT, Keys.TAB)
+                BaseBehavior.random_sleep(0.5, 1)
                 SelBehavior.human_like_type(email_field, self.email)
                 SelBehavior.random_sleep(0.01, 0.3)
 
-                SelBehavior.human_like_mouse_movement(self.driver, password_field)
-                SelBehavior.human_like_click(self.driver, email_field)
+                # SelBehavior.human_like_mouse_movement(self.driver, password_field)
+                # SelBehavior.human_like_click(self.driver, email_field)
+                email_field.send_keys(Keys.TAB)
                 SelBehavior.human_like_type(password_field, self.password)
                 SelBehavior.random_sleep(0.01, 0.5)
 
@@ -190,18 +193,15 @@ class SeleniumBot(BaseBot):
                 except Exception as e:
                     self.logger.exception("Error handling Cloudflare reCAPTCHA: %s", e)
 
-                try:
-                    login_button = WebDriverWait(self.driver, 5).until(
-                        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), '登錄')]"))
-                    )
-                    SelBehavior.human_like_click(self.driver, login_button)
-                except TimeoutException:
-                    self.logger.error("Login button not clickable")
-                    raise
+                self.driver.find_element(
+                    By.XPATH, '//button[@type="submit" and @class="btn btn-primary btn-block"]'
+                ).click()
 
                 SelBehavior.random_sleep(3, 5)
 
-                if "用戶登錄" not in self.driver.page_source:
+                if not self.driver.find_elements(
+                    By.XPATH, "//h1[@class='h4 text-secondary mb-4 login-box-msg']"
+                ):
                     self.logger.info("Login successful")
                     success = True
                 else:
@@ -221,7 +221,7 @@ class SeleniumBot(BaseBot):
             sys.exit("Automated login failed.")
 
     def check_login_errors(self):
-        error_messages = self.driver.find_elements(By.CLASS_NAME, "alert-danger")
+        error_messages = self.driver.find_elements(By.CLASS_NAME, "errorMessage")
         if error_messages:
             for message in error_messages:
                 self.logger.error("Login error: %s", message.text)
