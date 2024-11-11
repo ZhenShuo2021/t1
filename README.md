@@ -66,6 +66,7 @@ v2dl -i "/path/to/urls.txt"
 - url: 下載目標的網址。
 - -i: 下載目標的 URL 列表文字文件，每行一個 URL。
 - -a: 進入帳號管理工具。
+- --no-skip: 強制下載不跳過。
 - --bot: 選擇自動化工具，drission 比較不會被機器人檢測封鎖。
 - --dry-run: 僅進行模擬下載，不會實際下載檔案。
 - --chrome-args: 複寫啟動 Chrome 的參數，用於被機器人偵測封鎖時。
