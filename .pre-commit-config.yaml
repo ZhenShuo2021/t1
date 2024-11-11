@@ -13,14 +13,17 @@ repos:
         exclude: safe_house/
         args:
           - --line-length=100
+          - --profile=black  # 加入適配 `black` 格式化工具的設定，避免與 `ruff` 衝突
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.7.1
     hooks:
-    - id: ruff
-      exclude: safe_house/
-      args: [--fix, --exit-non-zero-on-fix]
-    - id: ruff-format
+      - id: ruff
+        exclude: safe_house/
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+        exclude: safe_house/
+        args: [--line-length=100]  # 與 `isort` 的 line-length 設定一致，避免衝突
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.13.0
