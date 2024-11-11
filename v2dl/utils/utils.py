@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -329,3 +330,11 @@ def get_image_extension(url: str) -> str:
     else:
         # 如果沒找到，返回預設值
         return "jpg"
+
+
+def check_input_file(input_path: str):
+    if input_path and not os.path.isfile(input_path):
+        logging.error("Input file %s does not exist.", input_path)
+        sys.exit(1)
+    else:
+        logging.info("Input file %s exists and is accessible.", input_path)

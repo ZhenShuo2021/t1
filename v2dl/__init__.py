@@ -20,4 +20,5 @@ __all__ = [
     "FileProcessingError",
     "DownloadError",
     "get_bot",
+    "__version__",
 ]

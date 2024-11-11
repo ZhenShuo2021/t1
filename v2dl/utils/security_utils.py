@@ -52,6 +52,7 @@ class Encryptor:
 
         # Derive the encryption key using scrypt
         import time
+
         t = time.time()
         derived_key = argon2id.kdf(
             self.KEY_BYTES,

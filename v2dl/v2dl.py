@@ -2,12 +2,13 @@ import logging
 import sys
 
 from .account_cli import cli
-from .config import Config, ConfigManager, RuntimeConfig, check_input_file, parse_arguments
+from .config import Config, ConfigManager, RuntimeConfig
 from .const import DEFAULT_CONFIG
 from .error import ScrapeError
 from .logger import setup_logging
+from .option import parse_arguments
 from .scrapper import ScrapeHandler
-from .utils.utils import ThreadingService
+from .utils.utils import ThreadingService, check_input_file
 from .version import __version__
 from .web_bot import get_bot
 
