@@ -15,7 +15,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC  # noqa: N812
 from selenium.webdriver.support.ui import WebDriverWait
 
-from ..const import SELENIUM_AGENT
+from ..common.const import SELENIUM_AGENT
 from .base import BaseBehavior, BaseBot, BaseScroll
 
 DEFAULT_BOT_OPT = [

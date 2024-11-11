@@ -9,7 +9,7 @@ from typing import Any
 import questionary
 from nacl.public import PrivateKey, PublicKey
 
-from .utils.security_utils import AccountManager, Encryptor
+from ..utils.security import AccountManager, Encryptor
 
 
 def display_menu() -> Any:

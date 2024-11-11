@@ -5,9 +5,10 @@ from typing import ClassVar, Generic, Literal, TypeAlias, TypeVar, Union, overlo
 
 from lxml import html
 
-from .config import Config, RuntimeConfig
-from .const import BASE_URL, HEADERS
-from .utils.utils import AlbumTracker, LinkParser, threading_download_job
+from ..common.config import Config, RuntimeConfig
+from ..common.const import BASE_URL, HEADERS
+from ..common.error import ScrapeError
+from ..utils import AlbumTracker, LinkParser, ThreadingService, threading_download_job
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str
@@ -16,6 +17,48 @@ LinkType = TypeVar("LinkType", AlbumLink, ImageLinkAndALT)
 
 # Define literal types for scraping types
 ScrapeType = Literal["album_list", "album_image"]
+
+
+class ScrapeManager:
+    """Manage the starting and ending of the scraper."""
+
+    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
+        self.runtime_config = runtime_config
+        self.base_config = base_config
+
+        self.web_bot = web_bot
+        self.dry_run = runtime_config.dry_run
+        self.logger = runtime_config.logger
+
+        # 初始化
+        self.download_service: ThreadingService = runtime_config.download_service
+
+        if not self.dry_run:
+            self.download_service.start_workers()
+
+    def start_scraping(self):
+        """Start scraping based on URL type."""
+        try:
+            urls = self._load_urls()
+            for url in urls:
+                self.runtime_config.url = url
+                link_scraper = ScrapeHandler(self.runtime_config, self.base_config, self.web_bot)
+                link_scraper.scrape(url, self.dry_run)
+        except ScrapeError as e:
+            self.logger.exception("Scraping error: '%s'", e)
+        finally:
+            if not self.dry_run:
+                self.download_service.wait_completion()
+            self.web_bot.close_driver()
+
+    def _load_urls(self):
+        """Load URLs from runtime_config (URL or txt file)."""
+        if self.runtime_config.input_file:
+            with open(self.runtime_config.input_file) as file:
+                urls = [line.strip() for line in file if line.strip()]
+        else:
+            urls = [self.runtime_config.url]
+        return urls
 
 
 class ScrapeHandler:

@@ -4,11 +4,9 @@ import threading
 
 import pytest
 
-from v2dl.config import ConfigManager, RuntimeConfig
-from v2dl.const import DEFAULT_CONFIG
-from v2dl.logger import setup_logging
-from v2dl.utils.utils import ThreadingService
-from v2dl.v2dl import ScrapeManager
+from v2dl import ConfigManager, RuntimeConfig, ScrapeManager, setup_logging
+from v2dl.common.const import DEFAULT_CONFIG
+from v2dl.utils import ThreadingService
 from v2dl.web_bot import get_bot
 
 os.environ["V2PH_USERNAME"] = "naf02905@inohm.com"  # temp account for testing

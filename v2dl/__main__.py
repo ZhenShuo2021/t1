@@ -1,4 +1,4 @@
-from .v2dl import main
+import v2dl
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(v2dl.main())

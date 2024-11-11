@@ -14,8 +14,8 @@ from nacl.pwhash import argon2id
 from nacl.secret import SecretBox
 from nacl.utils import random as nacl_random
 
-from ..config import ConfigManager
-from ..error import SecurityError
+from ..common.config import ConfigManager
+from ..common.error import SecurityError
 
 
 class Encryptor:

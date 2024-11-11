@@ -4,8 +4,8 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any
 
-from ..config import Config, RuntimeConfig
-from ..utils.security_utils import AccountManager, Encryptor
+from ..common.config import Config, RuntimeConfig
+from ..utils.security import AccountManager, Encryptor
 
 
 class BaseBot(ABC):
