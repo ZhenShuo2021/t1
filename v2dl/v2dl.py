@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from .account_cli import cli
 from .config import Config, ConfigManager, RuntimeConfig, check_input_file, parse_arguments
@@ -7,6 +8,7 @@ from .error import ScrapeError
 from .logger import setup_logging
 from .scrapper import ScrapeHandler
 from .utils.utils import ThreadingService
+from .version import __version__
 from .web_bot import get_bot
 
 
@@ -54,6 +56,11 @@ class ScrapeManager:
 
 def main():
     args, log_level = parse_arguments()
+
+    if args.version:
+        print(f"{__version__}")
+        sys.exit(0)
+
     if args.input_file:
         check_input_file(args.input_file)
 

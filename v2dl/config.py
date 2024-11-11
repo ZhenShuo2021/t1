@@ -166,6 +166,7 @@ def parse_arguments():
         help="Path to txt file containing URL list to be downloaded",
     )
     input_group.add_argument("-a", "--account", action="store_true", help="Manage account")
+    input_group.add_argument("--version", action="store_true", help="Show package version")
 
     parser.add_argument(
         "--bot",

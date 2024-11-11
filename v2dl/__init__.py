@@ -5,6 +5,7 @@ from .logger import setup_logging
 from .scrapper import ScrapeHandler
 from .utils.utils import ThreadingService
 from .v2dl import ScrapeManager
+from .version import __version__
 from .web_bot import get_bot
 
 __all__ = [
@@ -20,5 +21,3 @@ __all__ = [
     "DownloadError",
     "get_bot",
 ]
-
-__version__ = "0.1.0"
