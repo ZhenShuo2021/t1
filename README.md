@@ -2,28 +2,49 @@
 微圖坊下載器
 
 ## 特色
-📦 開箱即用：不用下載 Chrome driver   
+📦 開箱即用：不用下載額外依賴   
 🌐 跨平台：全平台支援    
 🔄 雙引擎：支援 DrissionPage 和 Selenium 兩種自動化選項   
+🛠️ 方便：支援多帳號自動登入自動切換   
+🔑 安全：使用和 [Psono](https://psono.com/zh-Hant/security) 一樣的後端 PyNaCL 
 
-## 使用方式
-### 前置需求
-1. 安裝 Chrome 瀏覽器
+
+## 安裝
+基本需求為
+
+1. 電腦已安裝 Chrome 瀏覽器
 2. Python 版本 > 3.10
+3. 使用指令安裝套件
 
-首次執行時需要手動登入網站。在 `.env` 檔案中填入帳號密碼後腳本可以自動登入。
 ```sh
 pip install v2dl
-v2dl <url>
 ```
 
+## 使用方式
+首次執行時需要登入 V2PH 的帳號，有兩種方式
+
+### 帳號管理介面
+使用 `v2dl -a` 進入帳號管理介面。
+```sh
+v2dl -a   # 設定帳號
+```
+
+### 手動登入
+帳號登入頁面的機器人偵測比較嚴格，可以隨機下載一個相簿，遇到登入頁面後手動登入。
+
+
 ### 嘗試第一次下載
+v2dl 支援多種下載方式，可以下載單一相簿，也可以下載相簿列表，也支援從相簿中間開始下載，以及讀取文字文件中的所有頁面。
+
 ```sh
 # 下載單一相簿
 v2dl "https://www.v2ph.com/album/Weekly-Young-Jump-2015-No15"
 
 # 下載相簿列表的所有相簿
 v2dl "https://www.v2ph.com/category/nogizaka46"
+
+# 下載文字檔中的所有頁面
+v2dl -i "/path/to/urls.txt"
 ```
 
 ## 設定
@@ -43,11 +64,29 @@ v2dl "https://www.v2ph.com/category/nogizaka46"
 
 ### 參數
 - url: 下載目標的網址。
-- --bot: 選擇自動化工具。drission 比較不會被機器人檢測封鎖。
+- -i: 下載目標的 URL 列表文字文件，每行一個 URL。
+- -a: 進入帳號管理工具。
+- --bot: 選擇自動化工具，drission 比較不會被機器人檢測封鎖。
 - --dry-run: 僅進行模擬下載，不會實際下載檔案。
+- --chrome-args: 複寫啟動 Chrome 的參數，用於被機器人偵測封鎖時。
+- --user-agent: 複寫 user-agent，用於被機器人偵測封鎖時。
 - --terminate: 程式結束後是否關閉 Chrome 視窗。
 - -q: 安靜模式。
 - -v: 偵錯模式。
+
+## 安全性簡介
+
+> 作為好玩的套件，所以會放一些看起來沒用的功能，例如這個安全架構，其實我也只是把文檔看過一遍就拿來用，這個段落都是邊寫邊查（不過有特別選輕量套件，這個才 4MB，常見的 cryptography 25MB）。
+
+密碼儲存使用基於現代密碼學 Networking and Cryptography (NaCl) 的加密套件 PyNaCL，系統採用三層金鑰架構完成縱深防禦：
+
+- 第一層使用作業系統的安全亂數源 os.urandom 生成 32 位元的 encryption_key 和 salt 用以衍生金鑰，衍生金鑰函式 (KDF) 採用最先進的 argon2id 演算法，此演算法結合最先進的 Argon2i 和 Argon2d，能有效防禦 side-channel resistant 和對抗 GPU 暴力破解。
+
+- 中間層使用主金鑰保護非對稱金鑰對，使用 XSalsa20-Poly1305 演算法加上 24-byte nonce 防禦密碼碰撞，XSalsa20 [擴展](https://meebox.io/docs/guide/encryption.html)了 Salsa20，在原本高效、不需要硬體加速的優勢上更進一步強化安全性。Poly1305 確保密碼完整性，防止傳輸過程中被篡改的問題。
+
+- 最外層以 SealBox 實現加密，採用業界標準 Curve25519 演算法提供完美前向保密，Curve25519 只需更短的金鑰就可達到和 RSA 同等的安全強度。
+
+最後將金鑰儲存在設有安全權限管理的資料夾，並將加密材料分開儲存於獨立的 .env 環境中。
 
 ## 在腳本中使用
 
@@ -85,16 +124,19 @@ config_manager = v2dl.ConfigManager(your_custom_config)
 app_config = config_manager.load()
 download_service = v2dl.ThreadingService(logger)
 
-runtime_config = v2dl.config.RuntimeConfig(
-    url="https://www.v2ph.com/album/Weekly-Big-Comic-Spirits-2016-No22-23",
-    bot_type="drission",
-    use_chrome_default_profile=False,
-    terminate=False,
+runtime_config = RuntimeConfig(
+    url=args.url,
+    input_file=args.input_file,
+    bot_type=args.bot_type,
+    chrome_args=args.chrome_args,
+    user_agent=args.user_agent,
+    use_chrome_default_profile=args.use_default_chrome_profile,
+    terminate=args.terminate,
     download_service=download_service,
-    dry_run=False,
+    dry_run=args.dry_run,
     logger=logger,
     log_level=log_level,
-    no_skip=True,
+    no_skip=args.no_skip,
 )
 
 # (Optional) setup logging format
@@ -107,8 +149,6 @@ scraper.start_scraping()
 ```
 
 ## 補充
-1. 這不是破解腳本，只是下載工具，該有的限制還是有。
-2. 換頁或者下載速度太快都可能觸發封鎖，目前的設定已經均衡下載速度和避免封鎖了。
-3. 請謹慎使用，不要又把好網站搞到關掉了，難得有資源收錄完整的。
-4. 從頁面中間開始下載不會被視作重複下載，以方便補齊缺失檔案。
-5. 會不會被封鎖也有一部分取決於網路環境，不要開 VPN 下載比較安全。
+1. 換頁或者下載速度太快都可能觸發封鎖，目前的設定已經均衡下載速度和避免封鎖了。
+2. 會不會被封鎖也有一部分取決於網路環境，不要開 VPN 下載比較安全。
+3. 謹慎使用，不要又把網站搞到關掉了，難得有資源收錄完整的。

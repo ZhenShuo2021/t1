@@ -11,8 +11,10 @@
     "memlimit",
     "Mqny",
     "opslimit",
+    "Psono",
     "pwhash",
-    "pyautogui"
+    "pyautogui",
+    "urandom"
   ],
   "editor.fontSize": 14,
   "editor.lineHeight": 20,
