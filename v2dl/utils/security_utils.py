@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import yaml
 from dotenv import load_dotenv, set_key
 from nacl.public import PrivateKey, PublicKey, SealedBox
-from nacl.pwhash import scrypt
+from nacl.pwhash import argon2id
 from nacl.secret import SecretBox
 from nacl.utils import random as nacl_random
 
@@ -20,10 +20,10 @@ from ..error import SecurityError
 
 class Encryptor:
     KEY_BYTES = 32
-    SALT_BYTES = 32
+    SALT_BYTES = 16
     NONCE_BYTES = 24
-    SCRYPT_OPS_LIMIT = 2**20
-    SCRYPT_MEM_LIMIT = 2**26
+    KDF_OPS_LIMIT = 2**10
+    KDF_MEM_LIMIT = 2**16
 
     def __init__(self, logger) -> None:
         self.logger = logger
@@ -51,14 +51,16 @@ class Encryptor:
         encryption_key = secrets.token_bytes(self.KEY_BYTES)
 
         # Derive the encryption key using scrypt
-        derived_key = scrypt.kdf(
+        import time
+        t = time.time()
+        derived_key = argon2id.kdf(
             self.KEY_BYTES,
             encryption_key,
             salt,
-            opslimit=self.SCRYPT_OPS_LIMIT,
-            memlimit=self.SCRYPT_MEM_LIMIT,
+            opslimit=self.KDF_OPS_LIMIT,
+            memlimit=self.KDF_MEM_LIMIT,
         )
-
+        print(time.time() - t)
         self.logger.debug("Derived encryption key with salt: %s", salt.hex())
         box = SecretBox(derived_key)
         nonce = nacl_random(self.NONCE_BYTES)
@@ -75,12 +77,12 @@ class Encryptor:
     ) -> bytes:
         """Decrypt the master key using scrypt."""
         # Derive the decryption key using scrypt
-        derived_key = scrypt.kdf(
+        derived_key = argon2id.kdf(
             self.KEY_BYTES,
             encryption_key,
             salt,
-            opslimit=self.SCRYPT_OPS_LIMIT,
-            memlimit=self.SCRYPT_MEM_LIMIT,
+            opslimit=self.KDF_OPS_LIMIT,
+            memlimit=self.KDF_MEM_LIMIT,
         )
 
         box = SecretBox(derived_key)
