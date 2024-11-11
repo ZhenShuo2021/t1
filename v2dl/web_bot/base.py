@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from ..common.config import Config, RuntimeConfig
-from ..utils.security import AccountManager, Encryptor
+from ..utils.security import AccountManager, KeyManager
 
 
 class BaseBot(ABC):
@@ -17,7 +17,7 @@ class BaseBot(ABC):
         self.close_browser = runtime_config.terminate
         self.logger = runtime_config.logger
 
-        self.encryptor = Encryptor(self.logger)
+        self.encryptor = KeyManager(self.logger)
         self.account_manager = AccountManager(self.encryptor, self.logger)
         self.private_key, self.public_key = self.encryptor.load_keys()
 

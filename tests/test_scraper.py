@@ -35,7 +35,7 @@ def setup_test_env(tmp_path):
     # monkeypatch.setattr("os.path.join", patched_join)
 
     logger = logging.getLogger("test_logger")
-
+    print("1")
     config = ConfigManager(DEFAULT_CONFIG).load()
     config.paths.download_log = tmp_path / "download.log"
     config.download.download_dir = tmp_path / "Downloads"
@@ -44,6 +44,7 @@ def setup_test_env(tmp_path):
     config.download.max_scroll_step = config.download.min_scroll_length * 4 + 1
 
     download_service: ThreadingService = ThreadingService(logger)
+    print("2")
 
     runtime_config = RuntimeConfig(
         url=test_url,
@@ -57,10 +58,13 @@ def setup_test_env(tmp_path):
         logger=logger,
         log_level=log_level,
     )
+    print("3")
 
     setup_logging(log_level, log_path=config.paths.system_log)
     web_bot = get_bot(runtime_config, config)
+    print("4")
     scraper = ScrapeManager(runtime_config, config, web_bot)
+    print("5")
 
     # scraper.config.download.download_dir = str(test_download_dir)
     return scraper, scraper.base_config.download.download_dir
@@ -70,9 +74,11 @@ def test_download(setup_test_env):
     timeout = 30
     scraper, test_download_dir = setup_test_env
     valid_extensions = (".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG")
+    print("6")
 
     thread = threading.Thread(target=scraper.start_scraping)
     thread.start()
+    print("7")
     thread.join(timeout)
 
     subdirectories = os.listdir(test_download_dir)

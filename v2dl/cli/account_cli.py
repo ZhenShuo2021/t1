@@ -9,7 +9,7 @@ from typing import Any
 import questionary
 from nacl.public import PrivateKey, PublicKey
 
-from ..utils.security import AccountManager, Encryptor
+from ..utils.security import AccountManager, KeyManager
 
 
 def display_menu() -> Any:
@@ -127,7 +127,7 @@ def cli() -> None:
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     clean_terminal()
-    encryptor = Encryptor(logger)
+    encryptor = KeyManager(logger)
     am = AccountManager(encryptor, logger)
     private_key, public_key = encryptor.load_keys()
 
