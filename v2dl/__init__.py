@@ -1,4 +1,3 @@
-# v2dl/__init__.py
 import sys
 
 if sys.version_info < (3, 10):

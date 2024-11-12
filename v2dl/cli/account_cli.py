@@ -1,4 +1,4 @@
-# cli interface of _password.py
+# cli interface of AccountManager
 import getpass
 import logging
 import os
@@ -135,9 +135,9 @@ def cli(encrypt_config) -> None:
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     clean_terminal()
-    encryptor = KeyManager(logger, encrypt_config)
-    am = AccountManager(logger, encryptor)
-    key_pair = encryptor.load_keys()
+    km = KeyManager(logger, encrypt_config)
+    am = AccountManager(logger, km)
+    key_pair = km.load_keys()
     private_key, public_key = key_pair.private_key, key_pair.public_key
 
     def execute_action(choice: str) -> bool:

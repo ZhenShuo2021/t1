@@ -246,14 +246,14 @@ class KeyManager(KeyIOHelper):
 class AccountManager:
     MAX_QUOTA = 16
 
-    def __init__(self, logger: logging.Logger, encryptor: KeyManager, yaml_path: str = ""):
+    def __init__(self, logger: logging.Logger, key_manager: KeyManager, yaml_path: str = ""):
         self.logger = logger
         self.yaml_path = (
             yaml_path
             if yaml_path
             else os.path.join(ConfigManager.get_system_config_dir(), "accounts.yaml")
         )
-        self.encryptor = encryptor
+        self.key_manager = key_manager
         self.lock = threading.RLock()
         self.accounts = self._load_yaml()
         self.check()
@@ -261,7 +261,7 @@ class AccountManager:
 
     def create(self, username: str, password: str, public_key: PublicKey) -> None:
         with self.lock:
-            encrypted_password = self.encryptor.encrypt_password(password, public_key)
+            encrypted_password = self.key_manager.encrypt_password(password, public_key)
             self.accounts[username] = {
                 "encrypted_password": encrypted_password,
                 "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
@@ -295,7 +295,7 @@ class AccountManager:
                 if new_username:
                     self.accounts[new_username] = self.accounts.pop(old_username)
                 if new_password:
-                    encrypted_password = self.encryptor.encrypt_password(new_password, public_key)
+                    encrypted_password = self.key_manager.encrypt_password(new_password, public_key)
                     self.accounts[new_username or old_username]["encrypted_password"] = (
                         encrypted_password
                     )
@@ -323,7 +323,7 @@ class AccountManager:
             return False
 
         encrypted_password = account.get("encrypted_password")
-        decrypted_password = self.encryptor.decrypt_password(encrypted_password, private_key)
+        decrypted_password = self.key_manager.decrypt_password(encrypted_password, private_key)
         if decrypted_password == password:
             print("Password is correct.")
             print(decrypted_password)
@@ -358,7 +358,7 @@ class AccountManager:
 
         username, account = random.choice(list(eligible_accounts.items()))
         enc_pw = account["encrypted_password"]
-        dec_pw = self.encryptor.decrypt_password(enc_pw, private_key)
+        dec_pw = self.key_manager.decrypt_password(enc_pw, private_key)
 
         return username, dec_pw
 
