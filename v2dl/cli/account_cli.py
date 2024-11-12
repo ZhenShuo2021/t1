@@ -38,14 +38,14 @@ def create_account(am: AccountManager, public_key: PublicKey) -> None:
     if username == "":
         return
     password = getpass.getpass("Please enter the password: ")
-    am.create_account(username, password, public_key)
+    am.create(username, password, public_key)
 
 
 def read_account(am: AccountManager) -> None:
     clean_terminal()
     print("Read Account")
     username = input("Please enter the username: ")
-    account = am.read_account(username)
+    account = am.read(username)
     if account:
         ordered_dict = OrderedDict()
         ordered_dict["username"] = username
@@ -70,7 +70,7 @@ def update_account(am: AccountManager, public_key: PublicKey, private_key: Priva
         return
     new_username = input("Please enter the new username (leave blank to not update): ")
     password = getpass.getpass("Please enter the new password (leave blank to not update): ")
-    am.edit_account(public_key, old_username, new_username, password)
+    am.edit(public_key, old_username, new_username, password)
 
 
 def delete_account(am: AccountManager, private_key: PrivateKey) -> None:
@@ -91,7 +91,7 @@ def delete_account(am: AccountManager, private_key: PrivateKey) -> None:
         ).ask()
 
         if confirm_delete == "Confirm":
-            am.delete_account(username)
+            am.delete(username)
         else:
             print("Operation canceled.")
     else:
@@ -102,7 +102,7 @@ def password_test(am: AccountManager, private_key: PrivateKey) -> None:
     clean_terminal()
     print("Password Test")
     username = input("Please enter the username: ")
-    account = am.read_account(username)
+    account = am.read(username)
     if account:
         password = getpass.getpass("Enter password: ")
         am.verify_password(username, password, private_key)
@@ -129,7 +129,8 @@ def cli() -> None:
     clean_terminal()
     encryptor = KeyManager(logger)
     am = AccountManager(encryptor, logger)
-    private_key, public_key = encryptor.load_keys()
+    key_pair = encryptor.load_keys()
+    private_key, public_key = key_pair.private_key, key_pair.public_key
 
     def execute_action(choice: str) -> bool:
         if choice == "create":

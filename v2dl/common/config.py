@@ -25,6 +25,15 @@ class RuntimeConfig:
 
 
 @dataclass
+class EncryptionConfig:
+    key_bytes: int = 32
+    salt_bytes: int = 16
+    nonce_bytes: int = 24
+    kdf_ops_limit: int = 2**10
+    kdf_mem_limit: int = 2**16
+
+
+@dataclass
 class DownloadConfig:
     min_scroll_length: int
     max_scroll_length: int

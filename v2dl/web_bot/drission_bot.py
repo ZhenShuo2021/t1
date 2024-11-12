@@ -133,7 +133,7 @@ class DrissionBot(BaseBot):
         if self.page("x://h1[@class='h4 text-secondary mb-4 login-box-msg']"):
             self.logger.info("Login page detected - Starting login process")
             try:
-                self.email, self.password = self.account_manager.get_account(self.private_key)
+                self.email, self.password = self.account_manager.random_pick(self.private_key)
                 if self.email is None or self.password is None:
                     self.logger.critical("Email and password not provided")
                     sys.exit("Automated login failed.")
@@ -192,8 +192,8 @@ class DrissionBot(BaseBot):
         if self.check_read_limit():
             # click logout
             self.page('x://ul[@class="nav justify-content-end"]//a[@href="/user/logout"]').click()
-            self.account_manager.update(self.email, "exceed_quota", True)
-            self.email, self.password = self.account_manager.get_account(self.private_key)
+            self.account_manager.update_status(self.email, "exceed_quota", True)
+            self.email, self.password = self.account_manager.random_pick(self.private_key)
 
     def check_read_limit(self) -> bool:
         return self.page.url == "https://www.v2ph.com/user/upgrade"

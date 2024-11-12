@@ -1,11 +1,15 @@
 import atexit
 import base64
+import ctypes
+import logging
 import os
 import random
 import secrets
 import sys
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Literal, overload
 
 import yaml
 from dotenv import load_dotenv, set_key
@@ -14,246 +18,317 @@ from nacl.pwhash import argon2id
 from nacl.secret import SecretBox
 from nacl.utils import random as nacl_random
 
-from ..common.config import ConfigManager
+from ..common.config import ConfigManager, EncryptionConfig
 from ..common.error import SecurityError
 
 
-class Encryptor:
-    KEY_BYTES = 32
-    SALT_BYTES = 16
-    NONCE_BYTES = 24
-    KDF_OPS_LIMIT = 2**10
-    KDF_MEM_LIMIT = 2**16
+@dataclass
+class KeyPair:
+    private_key: PrivateKey
+    public_key: PublicKey
 
-    def __init__(self, logger) -> None:
+
+class Encryptor:
+    """Managing encryption and decryption operations."""
+
+    def __init__(self, logger, config: EncryptionConfig) -> None:
         self.logger = logger
+        self.config = config
 
     def encrypt_master_key(self, master_key: bytes) -> tuple[bytes, bytes, bytes]:
-        salt = secrets.token_bytes(self.SALT_BYTES)
-        encryption_key = secrets.token_bytes(self.KEY_BYTES)
-
-        derived_key = argon2id.kdf(
-            self.KEY_BYTES,
-            encryption_key,
-            salt,
-            opslimit=self.KDF_OPS_LIMIT,
-            memlimit=self.KDF_MEM_LIMIT,
-        )
-        self.logger.debug("Derived encryption key with salt: %s", salt.hex())
+        salt = secrets.token_bytes(self.config.salt_bytes)
+        encryption_key = secrets.token_bytes(self.config.key_bytes)
+        derived_key = self.derive_key(encryption_key, salt)
 
         box = SecretBox(derived_key)
-        nonce = nacl_random(self.NONCE_BYTES)
+        nonce = nacl_random(self.config.nonce_bytes)
         encrypted_master_key = box.encrypt(master_key, nonce)
 
         derived_key = bytearray(len(derived_key))
         self.logger.info("Master key encryption successful")
-
         return encrypted_master_key, salt, encryption_key
 
     def decrypt_master_key(
-        self, encrypted_master_key: bytes, salt: bytes, encryption_key: bytes
-    ) -> bytes:
-        derived_key = argon2id.kdf(
-            self.KEY_BYTES,
-            encryption_key,
-            salt,
-            opslimit=self.KDF_OPS_LIMIT,
-            memlimit=self.KDF_MEM_LIMIT,
-        )
-
-        box = SecretBox(derived_key)
-        master_key = box.decrypt(encrypted_master_key)
-
-        derived_key = bytearray(len(derived_key))
-        self.logger.info("Master key decryption successful")
-
-        return master_key
-
-    def _decrypt_master_key(
         self, encrypted_master_key: bytes, salt: str, encryption_key: str
     ) -> bytes:
         salt_b64 = base64.b64decode(salt)
         enc_key_b64 = base64.b64decode(encryption_key)
+        derived_key = self.derive_key(enc_key_b64, salt_b64)
+        box = SecretBox(derived_key)
+        master_key = box.decrypt(encrypted_master_key)
 
-        master_key = self.decrypt_master_key(encrypted_master_key, salt_b64, enc_key_b64)
-
-        self._cleanup([enc_key_b64])
+        cleanup([derived_key, enc_key_b64])
+        self.logger.info("Master key decryption successful")
         return master_key
 
-    def _encrypt_private_key(self, private_key: PrivateKey, master_key: bytes) -> bytes:
-        """Encrypt the private key using the master key."""
+    def encrypt_private_key(self, private_key: PrivateKey, master_key: bytes) -> bytes:
         box = SecretBox(master_key)
-        nonce = nacl_random(self.NONCE_BYTES)
+        nonce = nacl_random(self.config.nonce_bytes)
         return box.encrypt(private_key.encode(), nonce)
 
-    def _decrypt_private_key(self, encrypted_private_key: bytes, master_key: bytes) -> PrivateKey:
+    def decrypt_private_key(self, encrypted_private_key: bytes, master_key: bytes) -> PrivateKey:
         box = SecretBox(master_key)
         private_key_bytes = box.decrypt(encrypted_private_key)
         private_key = PrivateKey(private_key_bytes)
-        self._cleanup([private_key_bytes])
+        cleanup([private_key_bytes])
         return private_key
 
-    def _validate_keypair(self, private_key: PrivateKey, public_key: PublicKey) -> None:
-        test_data = b"test"
-        sealed_box = SealedBox(public_key)
-        sealed_box_priv = SealedBox(private_key)
-
-        encrypted = sealed_box.encrypt(test_data)
-        decrypted = sealed_box_priv.decrypt(encrypted)
-
-        if decrypted != test_data:
-            raise SecurityError("Key pair validation failed")
-
     def encrypt_password(self, password: str, public_key: PublicKey) -> str:
-        """Encrypt a password using the public key."""
         sealed_box = SealedBox(public_key)
         encrypted = sealed_box.encrypt(password.encode())
         self.logger.info("Password encryption successful")
-
         return base64.b64encode(encrypted).decode("utf-8")
 
     def decrypt_password(self, encrypted_password: str, private_key: PrivateKey) -> str:
-        """Decrypt a password using the private key."""
-        encrypted = base64.b64decode(encrypted_password)
-        sealed_box = SealedBox(private_key)
-        decrypted = sealed_box.decrypt(encrypted)
-        return decrypted.decode()
-
-    @staticmethod
-    def _cleanup(sensitive_data: list[bytes]) -> None:
-        for data in sensitive_data:
-            data = bytearray(len(data))  # noqa: PLW2901
-
-
-class KeyManager(Encryptor):
-    def __init__(self, logger) -> None:
-        super().__init__(logger)
-        self.config = self._initialize_config()
-        self._ensure_secure_folder()
-        self._generate_keys()
-        self.custom_env_path = os.path.join(ConfigManager.get_system_config_dir(), ".env")
-
-    def _generate_keys(self) -> None:
-        if os.path.exists(self.config["private_key_file"]) and os.path.exists(
-            self.config["public_key_file"]
-        ):
-            self.logger.info("Key pair already exists.")
-            return
-
         try:
-            self._ensure_secure_folder()
-
-            # Generate keys
-            private_key = PrivateKey.generate()
-            public_key = private_key.public_key
-            master_key = secrets.token_bytes(self.KEY_BYTES)
-
-            # Encrypt master key and private key
-            encrypted_master_key, salt, encryption_key = self.encrypt_master_key(master_key)
-            encrypted_private_key = self._encrypt_private_key(private_key, master_key)
-
-            # Store keys
-            self._store_keys(encrypted_master_key, encrypted_private_key, public_key)
-            self._store_encryption_params(salt, encryption_key)
-
-            # Clean sensitive data
-            self._cleanup([master_key, encryption_key])
-            self.logger.info("Key pair has been successfully generated and stored.")
-
+            encrypted = base64.b64decode(encrypted_password)
+            sealed_box = SealedBox(private_key)
+            decrypted = sealed_box.decrypt(encrypted)
+            return decrypted.decode()
         except Exception as e:
-            self.logger.error("Key generation failed: %s", str(e))
-            raise SecurityError("Key generation failed") from e
+            self.logger.error("Password decryption failed: %s", str(e))
+            raise SecurityError from e
 
-    def _store_keys(
-        self, encrypted_master_key: bytes, encrypted_private_key: bytes, public_key: PublicKey
-    ) -> None:
-        SecureFileHandler.write_secure_file(self.config["master_key_file"], encrypted_master_key)
-        SecureFileHandler.write_secure_file(self.config["private_key_file"], encrypted_private_key)
-        SecureFileHandler.write_secure_file(
-            self.config["public_key_file"], public_key.encode(), 0o644
+    def derive_key(self, encryption_key: bytes, salt: bytes) -> bytes:
+        derived_key = argon2id.kdf(
+            self.config.key_bytes,
+            encryption_key,
+            salt,
+            opslimit=self.config.kdf_ops_limit,
+            memlimit=self.config.kdf_mem_limit,
         )
+        return derived_key
 
-    def _store_encryption_params(self, salt: bytes, encryption_key: bytes) -> None:
-        self.logger.debug("Storing encryption parameters.")
-        load_dotenv(self.config["env_path"])
-        salt_b64 = base64.b64encode(salt).decode("utf-8")
-        enc_key_b64 = base64.b64encode(encryption_key).decode("utf-8")
+    def validate_keypair(self, private_key: PrivateKey, public_key: PublicKey) -> None:
+        try:
+            test_data = b"test"
+            sealed_box = SealedBox(public_key)
+            sealed_box_priv = SealedBox(private_key)
 
-        set_key(self.config["env_path"], "SALT", salt_b64)
-        set_key(self.config["env_path"], "ENCRYPTION_KEY", enc_key_b64)
+            encrypted = sealed_box.encrypt(test_data)
+            decrypted = sealed_box_priv.decrypt(encrypted)
 
-    def load_keys(self) -> tuple[PrivateKey, PublicKey]:
-        # Load encrypted keys
-        self.logger.debug("Loading and validating keys.")
-        encrypted_master_key = SecureFileHandler.read_secure_file(self.config["master_key_file"])
-        encrypted_private_key = SecureFileHandler.read_secure_file(self.config["private_key_file"])
-        public_key_bytes = SecureFileHandler.read_secure_file(self.config["public_key_file"])
+            if decrypted != test_data:
+                raise SecurityError
+        except Exception as e:
+            self.logger.error("Key pair validation failed: %s", str(e))
+            raise SecurityError from e
 
-        # Load materials
-        salt, encryption_key = self.load_secret()
 
-        # Decrypt keys
-        master_key = self._decrypt_master_key(encrypted_master_key, salt, encryption_key)
-        private_key = self._decrypt_private_key(encrypted_private_key, master_key)
-        public_key = PublicKey(public_key_bytes)
+class KeyIOHelper(Encryptor):
+    """Manage the loading, saving, and validation of cryptographic keys."""
 
-        # Validate keypair
-        self._validate_keypair(private_key, public_key)
+    def __init__(self, logger, path_config: dict | None, encrypt_config: EncryptionConfig) -> None:
+        super().__init__(logger, encrypt_config)
+        self.logger = logger
+        self.path_config = self.init_conf(path_config)
 
-        # Clean sensitive data
-        self._cleanup([master_key])
-        self.logger.info("Keys loaded and validated successfully.")
+    def init_conf(self, path_config: dict | None) -> dict:
+        if path_config is None:
+            base_dir = ConfigManager.get_system_config_dir()
+            self.logger.debug("Initializing config with base directory: %s", base_dir)
+            return {
+                "key_folder": os.path.join(base_dir, ".keys"),
+                "env_path": os.path.join(base_dir, ".env"),
+                "master_key_file": os.path.join(base_dir, ".keys", "master_key.enc"),
+                "private_key_file": os.path.join(base_dir, ".keys", "private_key.pem"),
+                "public_key_file": os.path.join(base_dir, ".keys", "public_key.pem"),
+            }
+        else:
+            return path_config
 
-        return private_key, public_key
+    def load_keys(self) -> KeyPair:
+        self.logger.debug("Loading and validating keys")
+        master_key = self.load_master_key()
+        private_key = self.load_private_key(master_key)
+        public_key = self.load_public_key()
 
-    def load_secret(self) -> tuple[str, str]:
-        """load and validate salt and encryption_key in .env file."""
-        load_dotenv(self.config["env_path"])
+        self.validate_keypair(private_key, public_key)
+        cleanup([master_key])
 
-        required_vars = ["SALT", "ENCRYPTION_KEY"]
-        missing_vars = [var for var in required_vars if not os.getenv(var)]
+        self.logger.info("Keys loaded and validated successfully")
+        return KeyPair(private_key, public_key)
 
-        if missing_vars:
-            raise SecurityError(
-                f"Missing required environment variables: {', '.join(missing_vars)}"
-            )
-
-        salt_base64 = os.getenv("SALT", "")
-        encryption_key_base64 = os.getenv("ENCRYPTION_KEY", "")
-
+    def load_secret(self, env_path: str) -> tuple[str, str]:
+        """Load and validate salt and encryption_key from .env file."""
+        load_dotenv(env_path)
+        salt_base64 = SecureFileHandler.read_env("SALT")
+        encryption_key_base64 = SecureFileHandler.read_env("ENCRYPTION_KEY")
         return salt_base64, encryption_key_base64
 
-    def _initialize_config(self) -> dict:
-        base_dir = ConfigManager.get_system_config_dir()
-        self.logger.debug("Initializing config with base directory: %s", base_dir)
-        return {
-            "key_folder": os.path.join(base_dir, ".keys"),
-            "env_path": os.path.join(base_dir, ".env"),
-            "master_key_file": os.path.join(base_dir, ".keys", "master_key.enc"),
-            "private_key_file": os.path.join(base_dir, ".keys", "private_key.pem"),
-            "public_key_file": os.path.join(base_dir, ".keys", "public_key.pem"),
-        }
+    def load_master_key(self, path: str | None = None) -> bytes:
+        _path = self.path_config["master_key_file"] if path is None else path
+        encrypted_master_key = SecureFileHandler.read_file(_path, False)
+        salt, encryption_key = self.load_secret(self.path_config["env_path"])
+        return self.decrypt_master_key(encrypted_master_key, salt, encryption_key)
 
-    def _ensure_secure_folder(self) -> None:
-        if not os.path.exists(self.config["key_folder"]):
-            os.makedirs(self.config["key_folder"], mode=0o700)
-        else:
-            os.chmod(self.config["key_folder"], 0o700)
+    def load_public_key(self, path: str | None = None) -> PublicKey:
+        _path = self.path_config["public_key_file"] if path is None else path
+        public_key_bytes = SecureFileHandler.read_file(_path, False)
+        return PublicKey(public_key_bytes)
+
+    def load_private_key(self, master_key: bytes, path: str | None = None) -> PrivateKey:
+        _path = self.path_config["private_key_file"] if path is None else path
+        encrypted_private_key = SecureFileHandler.read_file(_path, False)
+        return self.decrypt_private_key(encrypted_private_key, master_key)
+
+    def save_keys(self, keys: tuple) -> None:
+        SecureFileHandler.write_file(self.path_config["master_key_file"], keys[0])
+        SecureFileHandler.write_file(self.path_config["private_key_file"], keys[1])
+        SecureFileHandler.write_file(self.path_config["public_key_file"], keys[2].encode(), 0o644)
+        SecureFileHandler.write_env(self.path_config["env_path"], "SALT", keys[3])
+        SecureFileHandler.write_env(self.path_config["env_path"], "ENCRYPTION_KEY", keys[4])
+
+    def check_folder(self) -> None:
+        if not os.path.exists(self.path_config["key_folder"]):
+            os.makedirs(self.path_config["key_folder"], mode=0o700)
+            self.logger.info("Secure folder created at %s", self.path_config["key_folder"])
+        elif not self.check_permission(self.path_config["key_folder"]):
+            os.chmod(self.path_config["key_folder"], 0o700)
+            self.logger.info("Permissions updated for folder at %s", self.path_config["key_folder"])
+
+    def check_permission(self, folder_path: str) -> bool:
+        folder_permission = 0o700
+        current_permissions = os.stat(folder_path).st_mode & 0o777
+        return current_permissions == folder_permission
+
+
+class KeyManager(KeyIOHelper):
+    """Top level class managing key generation."""
+
+    def __init__(
+        self,
+        logger,
+        path_dict: dict | None = None,
+        config: EncryptionConfig = EncryptionConfig(),
+    ) -> None:
+        super().__init__(logger, path_dict, config)
+        self.check_folder()
+
+        keys = self._init_keys()
+        if keys is not None:
+            self.save_keys(keys)
+
+    def _init_keys(self) -> tuple | None:
+        if self._keys_exist():
+            self.logger.info("Key pair already exists")
+            return None
+
+        self.check_folder()
+        return self._generate_and_encrypt_keys()
+
+    def _keys_exist(self) -> bool:
+        return os.path.exists(self.path_config["private_key_file"]) and os.path.exists(
+            self.path_config["public_key_file"]
+        )
+
+    def _generate_and_encrypt_keys(self) -> tuple:
+        keys = self._generate_key_pair()
+        master_key = secrets.token_bytes(self.config.key_bytes)
+        encrypted_master_key, salt, encryption_key = self.encrypt_master_key(master_key)
+        encrypted_private_key = self.encrypt_private_key(keys.private_key, master_key)
+
+        cleanup([master_key])
+        self.logger.info("Key pair has been successfully generated")
+        return (
+            encrypted_master_key,
+            encrypted_private_key,
+            keys.public_key,
+            salt,
+            encryption_key,
+        )
+
+    def _generate_key_pair(self) -> KeyPair:
+        private_key = PrivateKey.generate()
+        return KeyPair(private_key, private_key.public_key)
 
 
 class AccountManager:
     MAX_QUOTA = 16
     ACCOUNT_FILE_PATH = os.path.join(ConfigManager.get_system_config_dir(), "accounts.yaml")
 
-    def __init__(self, encryptor, logger):
+    def __init__(self, encryptor: KeyManager, logger: logging.Logger):
         self.encryptor = encryptor
         self.lock = threading.RLock()
-        self.accounts = self.load_yaml()
-        self.check_accounts()
+        self.accounts = self._load_yaml()
+        self.check()
         self.logger = logger
-        atexit.register(self.save_yaml)
+        atexit.register(self._save_yaml)
 
-    def check_accounts(self):
+    def create(self, username: str, password: str, public_key: PublicKey) -> None:
+        with self.lock:
+            encrypted_password = self.encryptor.encrypt_password(password, public_key)
+            self.accounts[username] = {
+                "encrypted_password": encrypted_password,
+                "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                "exceed_quota": False,
+                "exceed_time": "Null",
+            }
+        self.logger.info("Account %s has been created.", username)
+        self._save_yaml()
+
+    def delete(self, username: str) -> None:
+        with self.lock:
+            if username in self.accounts:
+                del self.accounts[username]
+                self.logger.info("Account %s has been deleted.", username)
+            else:
+                self.logger.error("Account %s not found.", username)
+            self._save_yaml()
+
+    def read(self, username: str) -> dict:
+        return self.accounts.get(username, {})
+
+    def edit(
+        self,
+        public_key: PublicKey,
+        old_username: str,
+        new_username: str = "",
+        new_password: str = "",
+    ) -> None:
+        with self.lock:
+            if old_username in self.accounts:
+                if new_username:
+                    self.accounts[new_username] = self.accounts.pop(old_username)
+                if new_password:
+                    encrypted_password = self.encryptor.encrypt_password(new_password, public_key)
+                    self.accounts[new_username or old_username]["encrypted_password"] = (
+                        encrypted_password
+                    )
+                self.logger.info("Account %s has been updated.", old_username)
+            else:
+                self.logger.error("Account not found.")
+
+    def update_status(self, username: str, field: str, new_value) -> None:
+        with self.lock:
+            account = self.accounts.get(username)
+            if account:
+                if field in account:
+                    account[field] = new_value
+                    self.logger.info("Updated %s for account %s.", field, username)
+                    self._save_yaml()
+                else:
+                    self.logger.error("Field '%s' does not exist in the account.", field)
+            else:
+                self.logger.error("Account %s not found.", username)
+
+    def verify_password(self, username: str, password: str, private_key: PrivateKey) -> bool:
+        account = self.accounts.get(username)
+        if not account:
+            self.logger.error("Account does not exist.")
+            return False
+
+        encrypted_password = account.get("encrypted_password")
+        decrypted_password = self.encryptor.decrypt_password(encrypted_password, private_key)
+        if decrypted_password == password:
+            print("Password is correct.")
+            print(decrypted_password)
+            return True
+        else:
+            print("Incorrect password.")
+            return False
+
+    def check(self) -> None:
         """檢查所有帳號的 exceed_time 是否超過 24 小時，若超過則清除 exceed_time 並將重置 exceed_quota."""
         now = datetime.now()
         update = False
@@ -268,81 +343,9 @@ class AccountManager:
                     update = True
 
         if update:
-            self.save_yaml()
+            self._save_yaml()
 
-    def create_account(self, username: str, password: str, public_key: PublicKey):
-        with self.lock:
-            encrypted_password = self.encryptor.encrypt_password(password, public_key)
-            self.accounts[username] = {
-                "encrypted_password": encrypted_password,
-                "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-                "exceed_quota": False,
-                "exceed_time": "Null",
-            }
-        self.logger.info("Account %s has been created.", username)
-        self.save_yaml()
-
-    def verify_password(self, username: str, password: str, private_key: PrivateKey) -> bool:
-        account = self.accounts.get(username)
-        if not account:
-            self.logger.error("Account does not exist.")
-            return False
-
-        encrypted_password = account.get("encrypted_password")
-        decrypted_password = self.encryptor.decrypt_password(encrypted_password, private_key)
-        if decrypted_password == password:
-            print("Password is correct.")
-            return True
-        else:
-            print("Incorrect password.")
-            return False
-
-    def read_account(self, username: str) -> dict:
-        return self.accounts.get(username, {})
-
-    def edit_account(
-        self,
-        public_key: PublicKey,
-        old_username: str,
-        new_username: str = "",
-        new_password: str = "",
-    ):
-        with self.lock:
-            if old_username in self.accounts:
-                if new_username:
-                    self.accounts[new_username] = self.accounts.pop(old_username)
-                if new_password:
-                    encrypted_password = self.encryptor.encrypt_password(new_password, public_key)
-                    self.accounts[new_username or old_username]["encrypted_password"] = (
-                        encrypted_password
-                    )
-                self.logger.info("Account %s has been updated.", old_username)
-            else:
-                self.logger.error("Account not found.")
-
-    def delete_account(self, username: str):
-        with self.lock:
-            if username in self.accounts:
-                del self.accounts[username]
-                self.logger.info("Account %s has been deleted.", username)
-            else:
-                self.logger.error("Account %s not found.", username)
-            self.save_yaml()
-
-    def save_yaml(self):
-        with self.lock:
-            with open(self.ACCOUNT_FILE_PATH, "w") as file:
-                yaml.dump(self.accounts, file, default_flow_style=False)
-        # self.logger.info("Successfully update accounts information.")
-
-    def load_yaml(self) -> dict:
-        try:
-            with open(self.ACCOUNT_FILE_PATH) as file:
-                return yaml.safe_load(file) or {}
-        except FileNotFoundError:
-            return {}
-
-    def get_account(self, private_key: PrivateKey) -> tuple[str, str]:
+    def random_pick(self, private_key: PrivateKey) -> tuple[str, str]:
         eligible_accounts = {k: v for k, v in self.accounts.items() if not v["exceed_quota"]}
 
         if not eligible_accounts:
@@ -355,32 +358,65 @@ class AccountManager:
 
         return username, dec_pw
 
-    def update(self, username: str, field: str, new_value):
+    def _save_yaml(self) -> None:
         with self.lock:
-            account = self.accounts.get(username)
-            if account:
-                if field in account:
-                    account[field] = new_value
-                    self.logger.info("Updated %s for account %s.", field, username)
-                    self.save_yaml()
-                else:
-                    self.logger.error("Field '%s' does not exist in the account.", field)
-            else:
-                self.logger.error("Account %s not found.", username)
+            with open(self.ACCOUNT_FILE_PATH, "w") as file:
+                yaml.dump(self.accounts, file, default_flow_style=False)
+        # self.logger.info("Successfully update accounts information.")
+
+    def _load_yaml(self) -> dict:
+        try:
+            with open(self.ACCOUNT_FILE_PATH) as file:
+                return yaml.safe_load(file) or {}
+        except FileNotFoundError:
+            return {}
 
 
 class SecureFileHandler:
     @staticmethod
-    def write_secure_file(path: str, data: bytes, permissions: int = 0o400) -> None:
-        """Securely write data to a file with specified permissions."""
+    def write_file(path: str, data: str | bytes, permissions: int = 0o400) -> None:
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+
         with open(path, "wb") as f:
             f.write(data)
         os.chmod(path, permissions)
 
     @staticmethod
-    def read_secure_file(path: str) -> bytes:
-        """Securely read data from a file."""
-        if not os.path.exists(path):
-            raise SecurityError(f"Required file not found: {path}")
+    @overload
+    def read_file(path: str, decode: Literal[True]) -> str: ...
+
+    @staticmethod
+    @overload
+    def read_file(path: str, decode: Literal[False]) -> bytes: ...
+
+    @staticmethod
+    def read_file(path: str, decode: bool = False) -> str | bytes:
         with open(path, "rb") as f:
-            return f.read()
+            _data = f.read()
+
+        return _data.decode("utf-8") if decode else _data
+
+    @staticmethod
+    def write_env(env_path: str, key: str, value: str | bytes) -> None:
+        if isinstance(value, bytes):
+            value = base64.b64encode(value).decode("utf-8")
+
+        load_dotenv(env_path)
+        set_key(env_path, key, value)  # type: ignore
+
+    @staticmethod
+    def read_env(key: str) -> str:
+        value = os.getenv(key)
+        if value is None:
+            raise SecurityError(f"Missing required environment variable: {key}")
+        return value
+
+
+def cleanup(sensitive_data: list[bytes]) -> None:
+    for data in sensitive_data:
+        length = len(data)
+        buffer = ctypes.create_string_buffer(length)
+        ctypes.memmove(ctypes.addressof(buffer), data, length)
+        ctypes.memset(ctypes.addressof(buffer), 0, length)
+        del buffer

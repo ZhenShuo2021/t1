@@ -160,7 +160,7 @@ class SeleniumBot(BaseBot):
         ):
             self.logger.info("Login page detected - Starting login process")
             try:
-                self.email, self.password = self.account_manager.get_account(self.private_key)
+                self.email, self.password = self.account_manager.random_pick(self.private_key)
                 if self.email is None or self.password is None:
                     self.logger.critical("Email and password not provided")
                     sys.exit("Automated login failed.")

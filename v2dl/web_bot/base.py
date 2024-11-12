@@ -19,7 +19,8 @@ class BaseBot(ABC):
 
         self.encryptor = KeyManager(self.logger)
         self.account_manager = AccountManager(self.encryptor, self.logger)
-        self.private_key, self.public_key = self.encryptor.load_keys()
+        key_pair = self.encryptor.load_keys()
+        self.private_key, self.public_key = key_pair.private_key, key_pair.public_key
 
         self.new_profile = False
 
