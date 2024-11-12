@@ -1,6 +1,8 @@
 import logging
 import os
+import shutil
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -18,24 +20,14 @@ BOT = "drission"
 
 
 @pytest.fixture
-def setup_test_env(tmp_path):
-    # test_download_dir = tmp_path / "test_download"
-    # test_download_dir.mkdir()
+def setup_test_env(tmp_path, request):
     test_url = TEST_URL
     bot_type = BOT
     dry_run = False
     terminate = True
     log_level = logging.INFO
 
-    # def patched_join(*args):
-    #     if args and args[0] == "download":
-    #         return original_join(str(test_download_dir), *args[1:])
-    #     return original_join(*args)
-
-    # monkeypatch.setattr("os.path.join", patched_join)
-
     logger = logging.getLogger("test_logger")
-    print("1")
     config = ConfigManager(DEFAULT_CONFIG).load()
     config.paths.download_log = tmp_path / "download.log"
     config.download.download_dir = tmp_path / "Downloads"
@@ -44,7 +36,6 @@ def setup_test_env(tmp_path):
     config.download.max_scroll_step = config.download.min_scroll_length * 4 + 1
 
     download_service: ThreadingService = ThreadingService(logger)
-    print("2")
 
     runtime_config = RuntimeConfig(
         url=test_url,
@@ -58,16 +49,24 @@ def setup_test_env(tmp_path):
         logger=logger,
         log_level=log_level,
     )
-    print("3")
 
     setup_logging(log_level, log_path=config.paths.system_log)
     web_bot = get_bot(runtime_config, config)
-    print("4")
     scraper = ScrapeManager(runtime_config, config, web_bot)
-    print("5")
 
-    # scraper.config.download.download_dir = str(test_download_dir)
-    return scraper, scraper.base_config.download.download_dir
+    yield scraper, config.download.download_dir
+
+    def cleanup():
+        download_dir = Path(config.download.download_dir)
+        download_log = Path(config.paths.download_log)
+
+        if download_dir.exists():
+            shutil.rmtree(download_dir)
+
+        if download_log.exists():
+            download_log.unlink()
+
+    request.addfinalizer(cleanup)  # noqa: PT021
 
 
 def test_download(setup_test_env):
