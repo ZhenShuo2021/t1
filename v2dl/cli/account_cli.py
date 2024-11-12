@@ -2,6 +2,7 @@
 import getpass
 import logging
 import os
+import platform
 import sys
 from collections import OrderedDict
 from typing import Any
@@ -37,7 +38,7 @@ def create_account(am: AccountManager, public_key: PublicKey) -> None:
     username = input("Please enter the username: ")
     if username == "":
         return
-    password = getpass.getpass("Please enter the password: ")
+    password = get_pass("Please enter the password: ")
     am.create(username, password, public_key)
 
 
@@ -65,11 +66,11 @@ def update_account(am: AccountManager, public_key: PublicKey, private_key: Priva
     clean_terminal()
     print("Update Account")
     old_username = input("Please enter the old username: ")
-    password = getpass.getpass("Please enter the password: ")
+    password = get_pass("Please enter the password: ")
     if not am.verify_password(old_username, password, private_key):
         return
     new_username = input("Please enter the new username (leave blank to not update): ")
-    password = getpass.getpass("Please enter the new password (leave blank to not update): ")
+    password = get_pass("Please enter the new password (leave blank to not update): ")
     am.edit(public_key, old_username, new_username, password)
 
 
@@ -78,7 +79,7 @@ def delete_account(am: AccountManager, private_key: PrivateKey) -> None:
     print("Delete Account")
     username = input("Please enter the username: ")
     if username in am.accounts:
-        password = getpass.getpass("Please enter the password: ")
+        password = get_pass("Please enter the password: ")
         if not am.verify_password(username, password, private_key):
             return
 
@@ -104,7 +105,7 @@ def password_test(am: AccountManager, private_key: PrivateKey) -> None:
     username = input("Please enter the username: ")
     account = am.read(username)
     if account:
-        password = getpass.getpass("Enter password: ")
+        password = get_pass("Enter password: ")
         am.verify_password(username, password, private_key)
     else:
         print("Account not found.")
@@ -121,6 +122,13 @@ def list_accounts(am: AccountManager) -> None:
             )
     else:
         print("No accounts available.")
+
+
+def get_pass(prompt="Password: "):
+    if platform.system() == "Windows":
+        return input(prompt)
+    else:
+        return getpass.getpass(prompt)
 
 
 def cli() -> None:
