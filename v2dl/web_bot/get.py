@@ -1,20 +1,24 @@
 import time
 
+from ..common import Config, RuntimeConfig
+from ..utils import AccountManager, KeyManager
 from .drission_bot import DrissionBot
 from .selenium_bot import SeleniumBot
 
 
-def get_bot(runtime_config, config):
+def get_bot(runtime_config: RuntimeConfig, app_config: Config):
     bot_classes = {"selenium": SeleniumBot, "drission": DrissionBot}
 
     bot_type = runtime_config.bot_type
     close_browser = runtime_config.terminate
     logger = runtime_config.logger
+    key_manager = KeyManager(logger, app_config.encryption)
+    account_manager = AccountManager(key_manager, logger)
 
     if bot_type not in bot_classes:
         raise ValueError(f"Unsupported automator type: {bot_type}")
 
-    bot = bot_classes[bot_type](runtime_config, config)
+    bot = bot_classes[bot_type](runtime_config, app_config, key_manager, account_manager)
 
     if bot.new_profile:
         init_new_profile(bot)

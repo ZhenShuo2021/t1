@@ -32,8 +32,8 @@ DEFAULT_BOT_OPT = [
 
 
 class SeleniumBot(BaseBot):
-    def __init__(self, runtime_config, base_config):
-        super().__init__(runtime_config, base_config)
+    def __init__(self, runtime_config, base_config, key_manager, account_manager):
+        super().__init__(runtime_config, base_config, key_manager, account_manager)
         self.init_driver()
         self.scroller = SelScroll(self.driver, self.config, self.logger)
         self.cloudflare = SelCloudflareHandler(self.driver, self.logger)

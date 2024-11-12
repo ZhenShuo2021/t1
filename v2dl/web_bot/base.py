@@ -11,15 +11,21 @@ from ..utils.security import AccountManager, KeyManager
 class BaseBot(ABC):
     """Abstract base class for bots, defining shared behaviors."""
 
-    def __init__(self, runtime_config: RuntimeConfig, base_config: Config):
+    def __init__(
+        self,
+        runtime_config: RuntimeConfig,
+        base_config: Config,
+        key_manager: KeyManager,
+        account_manager: AccountManager,
+    ):
         self.runtime_config = runtime_config
         self.config = base_config
         self.close_browser = runtime_config.terminate
         self.logger = runtime_config.logger
 
-        self.encryptor = KeyManager(self.logger)
-        self.account_manager = AccountManager(self.encryptor, self.logger)
-        key_pair = self.encryptor.load_keys()
+        self.key_manager = key_manager
+        self.account_manager = account_manager
+        key_pair = self.key_manager.load_keys()
         self.private_key, self.public_key = key_pair.private_key, key_pair.public_key
 
         self.new_profile = False

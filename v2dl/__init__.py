@@ -49,13 +49,13 @@ def main():
         print(f"{__version__}")
         sys.exit(0)
 
+    app_config = ConfigManager(DEFAULT_CONFIG).load()
+
     if args.input_file:
         check_input_file(args.input_file)
 
     if args.account:
-        cli()
-
-    app_config = ConfigManager(DEFAULT_CONFIG).load()
+        cli(app_config.encryption)
 
     setup_logging(log_level, log_path=app_config.paths.system_log)
     logger = logging.getLogger(__name__)

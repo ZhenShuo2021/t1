@@ -26,11 +26,11 @@ class RuntimeConfig:
 
 @dataclass
 class EncryptionConfig:
-    key_bytes: int = 32
-    salt_bytes: int = 16
-    nonce_bytes: int = 24
-    kdf_ops_limit: int = 2**10
-    kdf_mem_limit: int = 2**16
+    key_bytes: int
+    salt_bytes: int
+    nonce_bytes: int
+    kdf_ops_limit: int
+    kdf_mem_limit: int
 
 
 @dataclass
@@ -60,6 +60,7 @@ class Config:
     download: DownloadConfig
     paths: PathConfig
     chrome: ChromeConfig
+    encryption: EncryptionConfig
 
 
 class PathTool:
@@ -152,6 +153,7 @@ class ConfigManager(PathTool):
                 exec_path=ConfigManager.get_chrome_exec_path(self.config),
                 profile_path=self.config["chrome"]["profile_path"],
             ),
+            encryption=EncryptionConfig(**self.config.get("encryption", self.config["encryption"])),
         )
 
     @staticmethod

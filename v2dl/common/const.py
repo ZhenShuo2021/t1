@@ -22,6 +22,13 @@ DEFAULT_CONFIG: dict[str, dict[str, Any]] = {
             "Windows": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         },
     },
+    "encryption": {
+        "key_bytes": 32,
+        "salt_bytes": 16,
+        "nonce_bytes": 24,
+        "kdf_ops_limit": 2**10,
+        "kdf_mem_limit": 2**13,
+    },
 }
 
 

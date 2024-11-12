@@ -31,17 +31,17 @@ class KeyPair:
 class Encryptor:
     """Managing encryption and decryption operations."""
 
-    def __init__(self, logger, config: EncryptionConfig) -> None:
+    def __init__(self, logger, encrypt_config: EncryptionConfig) -> None:
         self.logger = logger
-        self.config = config
+        self.encrypt_config = encrypt_config
 
     def encrypt_master_key(self, master_key: bytes) -> tuple[bytes, bytes, bytes]:
-        salt = secrets.token_bytes(self.config.salt_bytes)
-        encryption_key = secrets.token_bytes(self.config.key_bytes)
+        salt = secrets.token_bytes(self.encrypt_config.salt_bytes)
+        encryption_key = secrets.token_bytes(self.encrypt_config.key_bytes)
         derived_key = self.derive_key(encryption_key, salt)
 
         box = SecretBox(derived_key)
-        nonce = nacl_random(self.config.nonce_bytes)
+        nonce = nacl_random(self.encrypt_config.nonce_bytes)
         encrypted_master_key = box.encrypt(master_key, nonce)
 
         derived_key = bytearray(len(derived_key))
@@ -63,7 +63,7 @@ class Encryptor:
 
     def encrypt_private_key(self, private_key: PrivateKey, master_key: bytes) -> bytes:
         box = SecretBox(master_key)
-        nonce = nacl_random(self.config.nonce_bytes)
+        nonce = nacl_random(self.encrypt_config.nonce_bytes)
         return box.encrypt(private_key.encode(), nonce)
 
     def decrypt_private_key(self, encrypted_private_key: bytes, master_key: bytes) -> PrivateKey:
@@ -91,11 +91,11 @@ class Encryptor:
 
     def derive_key(self, encryption_key: bytes, salt: bytes) -> bytes:
         derived_key = argon2id.kdf(
-            self.config.key_bytes,
+            self.encrypt_config.key_bytes,
             encryption_key,
             salt,
-            opslimit=self.config.kdf_ops_limit,
-            memlimit=self.config.kdf_mem_limit,
+            opslimit=self.encrypt_config.kdf_ops_limit,
+            memlimit=self.encrypt_config.kdf_mem_limit,
         )
         return derived_key
 
@@ -199,10 +199,10 @@ class KeyManager(KeyIOHelper):
     def __init__(
         self,
         logger,
+        encrypt_config: EncryptionConfig,
         path_dict: dict | None = None,
-        config: EncryptionConfig = EncryptionConfig(),
     ) -> None:
-        super().__init__(logger, path_dict, config)
+        super().__init__(logger, path_dict, encrypt_config)
         self.check_folder()
 
         keys = self._init_keys()
@@ -224,7 +224,7 @@ class KeyManager(KeyIOHelper):
 
     def _generate_and_encrypt_keys(self) -> tuple:
         keys = self._generate_key_pair()
-        master_key = secrets.token_bytes(self.config.key_bytes)
+        master_key = secrets.token_bytes(self.encrypt_config.key_bytes)
         encrypted_master_key, salt, encryption_key = self.encrypt_master_key(master_key)
         encrypted_private_key = self.encrypt_private_key(keys.private_key, master_key)
 

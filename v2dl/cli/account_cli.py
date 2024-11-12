@@ -131,11 +131,11 @@ def get_pass(prompt="Password: "):
         return getpass.getpass(prompt)
 
 
-def cli() -> None:
+def cli(encrypt_config) -> None:
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     clean_terminal()
-    encryptor = KeyManager(logger)
+    encryptor = KeyManager(logger, encrypt_config)
     am = AccountManager(encryptor, logger)
     key_pair = encryptor.load_keys()
     private_key, public_key = key_pair.private_key, key_pair.public_key
@@ -167,7 +167,3 @@ def cli() -> None:
             break
 
     sys.exit(0)
-
-
-if __name__ == "__main__":
-    cli()

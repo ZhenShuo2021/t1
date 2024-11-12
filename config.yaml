@@ -16,3 +16,10 @@ chrome:
     Linux: "/usr/bin/google-chrome"
     Darwin: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     Windows: r"C:\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+
+encryption:
+  key_bytes: 32
+  salt_bytes: 16 
+  nonce_bytes: 24
+  kdf_ops_limit: 1024
+  kdf_mem_limit: 8192
