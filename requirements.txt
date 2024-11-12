@@ -1,8 +1,8 @@
 colorama
 DrissionPage==4.1.0.9
 python-dotenv
-requests
 selenium
-setuptools
 lxml
 PyYAML
+pynacl
+questionary
