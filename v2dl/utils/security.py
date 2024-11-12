@@ -245,14 +245,18 @@ class KeyManager(KeyIOHelper):
 
 class AccountManager:
     MAX_QUOTA = 16
-    ACCOUNT_FILE_PATH = os.path.join(ConfigManager.get_system_config_dir(), "accounts.yaml")
 
-    def __init__(self, encryptor: KeyManager, logger: logging.Logger):
+    def __init__(self, logger: logging.Logger, encryptor: KeyManager, yaml_path: str = ""):
+        self.logger = logger
+        self.yaml_path = (
+            yaml_path
+            if yaml_path
+            else os.path.join(ConfigManager.get_system_config_dir(), "accounts.yaml")
+        )
         self.encryptor = encryptor
         self.lock = threading.RLock()
         self.accounts = self._load_yaml()
         self.check()
-        self.logger = logger
         atexit.register(self._save_yaml)
 
     def create(self, username: str, password: str, public_key: PublicKey) -> None:
@@ -360,13 +364,13 @@ class AccountManager:
 
     def _save_yaml(self) -> None:
         with self.lock:
-            with open(self.ACCOUNT_FILE_PATH, "w") as file:
+            with open(self.yaml_path, "w") as file:
                 yaml.dump(self.accounts, file, default_flow_style=False)
         # self.logger.info("Successfully update accounts information.")
 
     def _load_yaml(self) -> dict:
         try:
-            with open(self.ACCOUNT_FILE_PATH) as file:
+            with open(self.yaml_path) as file:
                 return yaml.safe_load(file) or {}
         except FileNotFoundError:
             return {}

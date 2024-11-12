@@ -136,7 +136,7 @@ def cli(encrypt_config) -> None:
     logger.setLevel(logging.INFO)
     clean_terminal()
     encryptor = KeyManager(logger, encrypt_config)
-    am = AccountManager(encryptor, logger)
+    am = AccountManager(logger, encryptor)
     key_pair = encryptor.load_keys()
     private_key, public_key = key_pair.private_key, key_pair.public_key
 

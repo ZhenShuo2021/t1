@@ -13,7 +13,7 @@ def get_bot(runtime_config: RuntimeConfig, app_config: Config):
     close_browser = runtime_config.terminate
     logger = runtime_config.logger
     key_manager = KeyManager(logger, app_config.encryption)
-    account_manager = AccountManager(key_manager, logger)
+    account_manager = AccountManager(logger, key_manager)
 
     if bot_type not in bot_classes:
         raise ValueError(f"Unsupported automator type: {bot_type}")
