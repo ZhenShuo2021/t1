@@ -8,7 +8,7 @@ from lxml import html
 from ..common.config import Config, RuntimeConfig
 from ..common.const import BASE_URL, HEADERS
 from ..common.error import ScrapeError
-from ..utils import AlbumTracker, LinkParser, ThreadingService, threading_download_job
+from ..utils import AlbumTracker, LinkParser, ThreadingService, ThreadJob, threading_download_job
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str
@@ -207,7 +207,7 @@ class BaseScraper(Generic[LinkType], ABC):
         self.runtime_config = runtime_config
         self.config = base_config
         self.web_bot = web_bot
-        self.download_service = runtime_config.download_service
+        self.download_service: ThreadingService = runtime_config.download_service
         self.logger = runtime_config.logger
 
     @abstractmethod
@@ -284,18 +284,21 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
 
             # assign download job for each image
             for i, (url, alt) in enumerate(zip(page_links, alts)):
-                self.download_service.add_task(
+                task = ThreadJob(
                     task_id=f"{album_name}_{i}",
-                    params=(
-                        url,
-                        alt,
-                        self.config.download.download_dir,
-                        HEADERS,
-                        self.config.download.rate_limit,
-                        self.runtime_config.no_skip,
-                    ),
-                    job=threading_download_job,
+                    func=threading_download_job,
+                    args=(f"{album_name}_{i}",),
+                    kwargs={
+                        "url": url,
+                        "alt": alt,
+                        "destination": self.config.download.download_dir,
+                        "headers": HEADERS,
+                        "rate_limit": self.config.download.rate_limit,
+                        "no_skip": self.runtime_config.no_skip,
+                        "logger": self.logger,
+                    },
                 )
+                self.download_service.add_task(task)
 
         self.logger.info("Found %d images on page %d", len(page_links), page)
 

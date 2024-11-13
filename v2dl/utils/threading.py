@@ -2,31 +2,28 @@ import logging
 import threading
 from dataclasses import dataclass
 from queue import Queue
-from typing import Any, Callable, Generic, Optional, TypeVar, Union
-
-# Generic type for task input and task result
-TI = TypeVar("TI", bound=Any)
-TR = TypeVar("TR", bound=Any)
+from typing import Any, Callable, Optional
 
 
 @dataclass
-class ThreadJob(Generic[TI]):
-    """Generic task container."""
+class ThreadJob:
+    """Task container."""
 
     task_id: str
-    params: TI
-    job: Union[Callable[..., TR], Any] = None  # type: ignore
+    func: Callable[..., Any]
+    args: tuple
+    kwargs: dict
 
 
-class ThreadingService(Generic[TI, TR]):
-    """Generic service for processing tasks with multiple workers."""
+class ThreadingService:
+    """Service for processing tasks with multiple workers."""
 
     def __init__(self, logger: logging.Logger, num_workers: int = 1):
-        self.task_queue: Queue[Optional[ThreadJob[TI]]] = Queue()
+        self.task_queue: Queue[Optional[ThreadJob]] = Queue()
         self.logger = logger
         self.num_workers = num_workers
         self.worker_threads: list[threading.Thread] = []
-        self.results: dict[str, TR] = {}
+        self.results: dict[str, Any] = {}
         self._lock = threading.Lock()
 
     def start_workers(self):
@@ -44,21 +41,19 @@ class ThreadingService(Generic[TI, TR]):
                 break  # exit signal received
 
             try:
-                if task.job:
-                    result: Any = task.job(task.task_id, task.params, self.logger)
-                    with self._lock:
-                        self.results[task.task_id] = result
+                result: Any = task.func(*task.args, **task.kwargs)
+                with self._lock:
+                    self.results[task.task_id] = result
             except Exception as e:
                 self.logger.error("Error processing task %s: %s", task.task_id, e)
             finally:
                 self.task_queue.task_done()
 
-    def add_task(self, task_id: str, params: TI, job: Any) -> None:
+    def add_task(self, task: ThreadJob) -> None:
         """Add task to queue with specific parameters and job."""
-        task = ThreadJob(task_id=task_id, params=params, job=job)
         self.task_queue.put(task)
 
-    def get_result(self, task_id: str) -> Optional[TR]:
+    def get_result(self, task_id: str) -> Optional[Any]:
         """Get the result of a specific task."""
         with self._lock:
             return self.results.get(task_id)

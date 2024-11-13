@@ -30,28 +30,38 @@ class AlbumTracker:
                 f.write(album_url + "\n")
 
 
-def threading_download_job(task_id: str, params: tuple, logger: logging.Logger) -> bool:
+def threading_download_job(  # noqa: PLR0913
+    task_id: str,
+    url: str,
+    destination: Path,
+    alt: str,
+    rate_limit: int,
+    headers: dict,
+    no_skip: bool,
+    logger: logging.Logger,
+) -> bool:
     """Download single photo job for threading service.
 
     Args:
         task_id (str): Task identifier
-        params (tuple): (url, alt, destination, headers, rate_limit, no_skip)
-                       destination is the parent directory for saving files
+        url (str): Image URL
+        destination (Path): Directory for saving files
+        alt (str): Alternative text for image, used as filename
+        rate_limit (int): Rate limit for downloads
+        headers (dict): Request headers
+        no_skip (bool): Skip existing files if False
         logger (logging.Logger): Logger instance
 
     Returns:
         bool: True if download successful, False otherwise
     """
     try:
-        url, alt, destination, headers, rate_limit, no_skip = params
-
         # obtain album_name from task_id (the format of task_id is "album_name_index")
         album_name = task_id.rsplit("_", 1)[0]
-
-        # setup paths
         folder = destination / Path(album_name)
         folder.mkdir(parents=True, exist_ok=True)
-        filename = re.sub(r'[<>:"/\\|?*]', "", alt)  # Remove invalid characters
+
+        filename = re.sub(r'[<>:"/\\|?*]', "", alt)  # remove invalid characters
         file_path = folder / f"{filename}.{get_image_extension(url)}"
 
         if file_path.exists() and not no_skip:
@@ -63,11 +73,6 @@ def threading_download_job(task_id: str, params: tuple, logger: logging.Logger) 
     except Exception as e:
         logger.error("Error downloading photo %s: %s", task_id, e)
         return False
-
-
-def threading_process_data_job(task_id: str, params: dict, logger: logging.Logger) -> dict:
-    # Process data and return results
-    return {"processed": True, "data": params}
 
 
 def download_album(  # noqa: PLR0913
