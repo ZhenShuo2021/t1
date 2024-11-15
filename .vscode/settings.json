@@ -4,6 +4,7 @@
   "terminal.integrated.fontFamily": "monospace",
   "editor.fontFamily": "MesloLGS NF",
   "cSpell.words": [
+    "aiter",
     "automator",
     "Drission",
     "httpx",
@@ -15,6 +16,9 @@
     "Psono",
     "pwhash",
     "pyautogui",
+    "pyproject",
+    "pytest",
+    "pyupgrade",
     "urandom"
   ],
   "editor.fontSize": 14,

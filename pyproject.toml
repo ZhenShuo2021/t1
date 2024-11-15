@@ -35,103 +35,116 @@ isort = "^5.13.2"
 [tool.poetry.scripts]
 v2dl = "v2dl:main"
 
+[tool.mypy]
+ignore_missing_imports = true
+strict = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_redundant_casts = true
+warn_unreachable = true
+warn_unused_ignores = true
+follow_imports = "silent"
+disable_error_code = [
+    "import-untyped",
+    "import-not-found",
+    "no-untyped-call",
+    "no-any-return",
+    "unused-ignore",
+]
+enable_error_code = ["attr-defined", "name-defined"]
+# enable_error_code = [
+#   "ignore-without-code",
+#   "redundant-expr",
+#   "truthy-bool",
+# ]
+
+
 [tool.ruff]
 line-length = 100
-exclude = [".git", "build", ".tox", ".eggs"]
+exclude = [".git", "build", ".tox", ".eggs", "safe_house"]
 preview = true
+target-version = "py310"
+
+[tool.ruff.format]
+docstring-code-format = true
+quote-style = "double"
+
+[tool.ruff.per-file-ignores]
+"v2dl/cli/account_cli.py" = ["T201"]
+"v2dl/utils/security.py" = ["T201"]
 
 [tool.ruff.lint]
 explicit-preview-rules = true
-allowed-confusables = ["，"]
-select = [
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "D",   # pydocstyle
-    "E",   # pycodestyle
-    "EXE", # flake8-executable
-    "F",   # pyflakes
-    "G",   # flake8-logging-format
-    "I",   # isort
-    "LOG", # flake8-logging
-    "N",   # pep8-naming
-    "NPY", # NumPy-specific rules
-    "PIE", # flake8-pie
-    "PLC", # pylint
-    "PLE",
-    "PLR",
-    "PLW",
-    "PT",  # flake8-pytest-style
-    "PYI", # flake8-pyi
-    "Q",   # flake8-quotes
-    "RSE", # flake8-raise
-    "RUF", # ruff-specific rules
-    "SIM", # flake8-simplify
-    "TCH", # flake8-type-checking
-    # "TRY",
-    "UP", # pyupgrade
-    "W",  # Warning
-]
+allowed-confusables = ["，", "。", "（", "）"]
 ignore = [
-    "D100",    # Missing docstring in public module
-    "D101",    # Missing docstring in public class
-    "D102",    # Missing docstring in public method
-    "D103",    # Missing docstring in public function
-    "D104",    # Missing docstring in public package
-    "D105",    # Missing docstring in magic method
-    "D106",    # Missing docstring in public nested class
-    "D107",    # Missing docstring in `__init__`RuffD107
-    "D200",
-    "D201",
-    "D202",
-    "D203",
-    "D204",
-    "D205",
-    "D213",
-    "D301",
-    "D400",
-    "D401",
-    "D403",
-    "D404",
-    "D413",    # Missing blank line after last section
-    "E741",
-    "F841",
-    "B007",
-    "B008",
-    "B017",
-    "B018",
-    "B023",
-    "B028",
-    "E402",
-    "C408",
-    "E501",
-    "E721",
-    "E731",
-    "E741",
-    "EXE001",
-    "F405",
-    "F841",
-    "G101",
-    "NPY002",
-    "PERF203",
-    "PERF401",
-    "PERF403",
-    "PYI024",
-    "PYI036",
-    "PYI041",
-    "PYI056",
-    "SIM102",
-    "SIM103",
-    "SIM112",
-    "SIM113",
-    "SIM105",
-    "SIM108",
-    "SIM110",
-    "SIM114",
-    "SIM115",
-    "SIM116",
-    "SIM117",
-    "SIM118",
-    "UP006",
-    "UP007",
-    "W292",
+    "E402",    # module-import-not-at-top-of-file
+    "E501",    # line-too-long
+    "E731",    # lambda-assignment
+    "E741",    # ambiguous-variable-name
+    "UP036",   # outdated-version-block
+    "B006",    # mutable-argument-default
+    "B008",    # function-call-in-default-argument
+    "B011",    # assert-false
+    "B017",    # assert-raises-exception
+    "B023",    # function-uses-loop-variable (false positives)
+    "B028",    # no-explicit-stacklevel
+    "B904",    # raise-without-from-inside-except
+    "C401",    # unnecessary-generator-set
+    "C402",    # unnecessary-generator-dict
+    "PIE790",  # unnecessary-placeholder
+    "SIM102",  # collapsible-if
+    "SIM108",  # if-else-block-instead-of-if-exp
+    "SIM112",  # uncapitalized-environment-variables
+    "SIM113",  # enumerate-for-loop
+    "SIM114",  # if-with-same-arms
+    "SIM115",  # open-file-with-context-handler
+    "SIM117",  # multiple-with-statements
+    "SIM223",  # expr-and-false
+    "SIM300",  # yoda-conditions
+    "TD001",   # invalid-todo-tag
+    "TD002",   # missing-todo-author
+    "TD003",   # missing-todo-link
+    "PLE0604", # invalid-all-object (false positives)
+    "PLE0643", # potential-index-error (false positives)
+    "PLW0603", # global-statement
+    "PLW1510", # subprocess-run-without-check
+    "PLW2901", # redefined-loop-name
+    "RUF001",  # ambiguous-unicode-character-string
+    "RUF012",  # mutable-class-default
+    "RUF100",  # unused-noqa (flake8 has slightly different behavior)
 ]
+select = [
+    "E",      # pycodestyle Error
+    "W",      # pycodestyle Warning
+    "F",      # Pyflakes
+    "I",      # isort
+    "Q",      # flake8-quotes
+    "N803",   # invalid-argument-name
+    "N804",   # invalid-first-argument-name-for-class-method
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "COM",    # flake8-commas
+    "C4",     # flake8-comprehensions
+    "FA",     # flake8-future-annotations
+    "ISC",    # flake8-implicit-str-concat
+    "ICN003", # banned-import-from
+    "PIE",    # flake8-pie
+    "T20",    # flake8-print
+    "RSE",    # flake8-raise
+    "RET504", # unnecessary-assign
+    "SIM",    # flake8-simplify
+    "TID251", # banned-api
+    "TD",     # flake8-todos
+    "PLC",    # Pylint Convention
+    "PLE",    # Pylint Error
+    "PLW",    # Pylint Warning
+    "RUF",    # Ruff-specific rules
+]
+
+[tool.ruff.lint.isort]
+force-single-line = false
+combine-as-imports = true
+length-sort-straight = true
+relative-imports-order = "closest-to-furthest"

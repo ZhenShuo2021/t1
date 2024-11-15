@@ -2,38 +2,39 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
-    - id: end-of-file-fixer
-    - id: check-yaml
-    - id: check-added-large-files
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: debug-statements
+      - id: check-case-conflict
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.10
     hooks:
-      - id: isort
-        exclude: safe_house/
-        args:
-          - --line-length=100
-          - --profile=black  # 加入適配 `black` 格式化工具的設定，避免與 `ruff` 衝突
+      - id: bandit
+        args: ["-ll"]
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.19.0
+    hooks:
+      - id: pyupgrade
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.1
+    rev: v0.7.4
     hooks:
       - id: ruff
-        exclude: safe_house/
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
-        exclude: safe_house/
-        args: [--line-length=100]  # 與 `isort` 的 line-length 設定一致，避免衝突
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.13.0
     hooks:
-    - id: mypy
-      exclude: safe_house/
-      args:
-        - "--disable-error-code=import-untyped"
-        - "--disable-error-code=import-not-found"
-        - "--check-untyped-defs"
+      - id: mypy
+        args: ["--config-file=pyproject.toml"]
+        exclude: ^(safe_house/|tests/)
+        additional_dependencies:
+          - types-PyYAML
 
   - repo: local
     hooks:
