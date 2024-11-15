@@ -1,8 +1,8 @@
 import atexit
 import base64
+import shutil
 import logging
 import secrets
-import shutil
 from datetime import datetime, timedelta
 
 import pytest
@@ -101,6 +101,7 @@ def test_create_account(account_manager: AccountManager):
     account_manager.create(username, password, public_key)
 
     account = account_manager.read(username)
+    assert account is not None
     assert "encrypted_password" in account
     assert "created_at" in account
     assert account["exceed_quota"] is False
@@ -116,7 +117,7 @@ def test_delete_account(account_manager: AccountManager):
     account_manager.delete(username)
 
     account = account_manager.read(username)
-    assert account == {}
+    assert account is None
 
 
 def test_edit_account(account_manager: AccountManager):
@@ -129,8 +130,9 @@ def test_edit_account(account_manager: AccountManager):
     account_manager.edit(public_key, old_username, new_username, new_password)
 
     account = account_manager.read(new_username)
+    assert account is not None
     assert "encrypted_password" in account
-    assert account_manager.read(old_username) == {}
+    assert account_manager.read(old_username) is None
 
 
 def test_update_status(account_manager: AccountManager):
@@ -141,10 +143,13 @@ def test_update_status(account_manager: AccountManager):
     account_manager.create(username, password, public_key)
     account_manager.update_status(username, "exceed_quota", True)
     account_manager.update_status(
-        username, "exceed_time", datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        username,
+        "exceed_time",
+        datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     )
 
     account = account_manager.read(username)
+    assert account is not None
     assert account["exceed_quota"] is True
     assert account["exceed_time"] != "Null"
 
@@ -168,11 +173,14 @@ def test_check(account_manager: AccountManager):
 
     account_manager.create(username, password, public_key)
     account_manager.update_status(
-        username, "exceed_time", (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        username,
+        "exceed_time",
+        (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S"),
     )
     account_manager.update_status(username, "exceed_quota", True)
 
     account_manager.check()
     account = account_manager.read(username)
+    assert account is not None
     assert account["exceed_quota"] is False
     assert account["exceed_time"] == "Null"

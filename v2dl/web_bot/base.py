@@ -1,7 +1,8 @@
 import os
-import random
 import time
+import random
 from abc import ABC, abstractmethod
+from logging import Logger
 from typing import Any
 
 from ..common.config import Config, RuntimeConfig
@@ -35,10 +36,10 @@ class BaseBot(ABC):
         """Initialize the browser driver."""
 
     @abstractmethod
-    def close_driver(self):
+    def close_driver(self) -> None:
         """Close the browser and handle cleanup."""
 
-    def prepare_chrome_profile(self):
+    def prepare_chrome_profile(self) -> str:
         user_data_dir = self.config.chrome.profile_path
 
         if not os.path.exists(user_data_dir):
@@ -50,20 +51,24 @@ class BaseBot(ABC):
         return user_data_dir
 
     def auto_page_scroll(
-        self, url: str, max_retry: int = 3, page_sleep: int = 5, fast_scroll: bool = True
+        self,
+        url: str,
+        max_retry: int = 3,
+        page_sleep: int = 5,
+        fast_scroll: bool = True,
     ) -> str:
         """Request handling with retries. To be implemented in subclasses."""
         raise NotImplementedError("Subclasses must implement automated retry logic.")
 
-    def handle_login(self):
+    def handle_login(self) -> None:
         """Login logic, implemented by subclasses."""
         raise NotImplementedError("Subclasses must implement login logic.")
 
-    def human_like_type(self, element, text):
+    def human_like_type(self, element: Any, text: str) -> None:
         """Simulate human-like typing into a field."""
         raise NotImplementedError("Subclasses must implement scroll behavior.")
 
-    def scroll_page(self):
+    def scroll_page(self) -> None:
         """Simulate human-like scrolling behavior."""
         raise NotImplementedError("Subclasses must implement scroll behavior.")
 
@@ -72,12 +77,12 @@ class BaseBehavior:
     pause_time = (0.1, 0.3)
 
     @staticmethod
-    def random_sleep(min_time=1.0, max_time=5.0):
+    def random_sleep(min_time: float = 1.0, max_time: float = 5.0) -> None:
         time.sleep(random.uniform(min_time, max_time))
 
 
 class BaseScroll:
-    def __init__(self, config, logger):
+    def __init__(self, config: Config, logger: Logger) -> None:
         self.config = config
         self.logger = logger
         self.scroll_position = 0

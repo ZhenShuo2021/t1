@@ -1,6 +1,8 @@
-import random
 import sys
 import time
+import random
+from logging import Logger
+from typing import TYPE_CHECKING, Any
 
 from DrissionPage import ChromiumOptions, ChromiumPage
 from DrissionPage.common import wait_until
@@ -8,15 +10,25 @@ from DrissionPage.errors import ElementNotFoundError, WaitTimeoutError
 
 from .base import BaseBehavior, BaseBot, BaseScroll
 
+if TYPE_CHECKING:
+    from ..common import Config, RuntimeConfig
+    from ..utils import AccountManager, KeyManager
+
 
 class DrissionBot(BaseBot):
-    def __init__(self, runtime_config, base_config, key_manager, account_manager):
+    def __init__(
+        self,
+        runtime_config: "RuntimeConfig",
+        base_config: "Config",
+        key_manager: "KeyManager",
+        account_manager: "AccountManager",
+    ) -> None:
         super().__init__(runtime_config, base_config, key_manager, account_manager)
         self.config = base_config
         self.init_driver()
         self.cloudflare = DriCloudflareHandler(self.page, self.logger)
 
-    def init_driver(self):
+    def init_driver(self) -> None:
         # subprocess of chrome: Drission terminate chrome anyway
         co = ChromiumOptions()
         if self.runtime_config.chrome_args is not None:
@@ -38,12 +50,16 @@ class DrissionBot(BaseBot):
 
         self.scroll = DriScroll(self.page, self.config, self.logger)
 
-    def close_driver(self):
+    def close_driver(self) -> None:
         if self.close_browser:
             self.page.quit()
 
     def auto_page_scroll(
-        self, url: str, max_retry: int = 3, page_sleep: int = 5, fast_scroll: bool = False
+        self,
+        url: str,
+        max_retry: int = 3,
+        page_sleep: int = 5,
+        fast_scroll: bool = False,
     ) -> str:
         """Scroll page automatically with retries and Cloudflare challenge handle.
 
@@ -67,7 +83,8 @@ class DrissionBot(BaseBot):
                 # handle page redirection fail
                 if not self.handle_redirection_fail(url, max_retry, page_sleep):
                     self.logger.error(
-                        "Reconnection fail for URL %s. Please check your network status.", url
+                        "Reconnection fail for URL %s. Please check your network status.",
+                        url,
                     )
                     break
 
@@ -113,7 +130,10 @@ class DrissionBot(BaseBot):
         retry = 1
         while retry <= max_retry:
             self.logger.error(
-                "Redirection handle failed for URL %s - Attempt %d/%d.", url, retry, max_retry
+                "Redirection handle failed for URL %s - Attempt %d/%d.",
+                url,
+                retry,
+                max_retry,
             )
             DriBehavior.random_sleep(sleep_time, sleep_time + 5 * random.uniform(1, retry * 5))
 
@@ -128,19 +148,16 @@ class DrissionBot(BaseBot):
 
         return self.page.url == url and self.page.states.is_alive
 
-    def handle_login(self):
+    def handle_login(self) -> None:
         success = False
         if self.page("x://h1[@class='h4 text-secondary mb-4 login-box-msg']"):
             self.logger.info("Login page detected - Starting login process")
             try:
                 self.email, self.password = self.account_manager.random_pick(self.private_key)
-                if self.email is None or self.password is None:
-                    self.logger.critical("Email and password not provided")
-                    sys.exit("Automated login failed.")
-
-                # self.handle_cloudflare_recaptcha()
                 email_field = self.page("#email")
                 password_field = self.page("#password")
+
+                # self.handle_cloudflare_recaptcha()
                 email_field.clear(True)
                 password_field.clear(True)
 
@@ -154,7 +171,7 @@ class DrissionBot(BaseBot):
                 # remember_checkbox.click()
 
                 login_button = self.page(
-                    'x://button[@type="submit" and @class="btn btn-primary btn-block"]'
+                    'x://button[@type="submit" and @class="btn btn-primary btn-block"]',
                 )
                 login_button.click()
 
@@ -180,7 +197,7 @@ class DrissionBot(BaseBot):
             self.logger.critical("Automated login failed. Please login yourself.")
             sys.exit("Automated login failed.")
 
-    def check_login_errors(self):
+    def check_login_errors(self) -> None:
         error_message = self.page('x://div[@class="errorMessage"]')
         if error_message:
             self.logger.error("Login error: %s", error_message.text)
@@ -188,7 +205,7 @@ class DrissionBot(BaseBot):
             self.logger.error("Login failed for unknown reasons")
             sys.exit(1)
 
-    def handle_read_limit(self):
+    def handle_read_limit(self) -> None:
         if self.check_read_limit():
             # click logout
             self.page('x://ul[@class="nav justify-content-end"]//a[@href="/user/logout"]').click()
@@ -198,7 +215,7 @@ class DrissionBot(BaseBot):
     def check_read_limit(self) -> bool:
         return self.page.url == "https://www.v2ph.com/user/upgrade"
 
-    def click_logout(self):
+    def click_logout(self) -> None:
         self.page.ele("@href=/user/logout").click()
 
 
@@ -208,7 +225,7 @@ class DriCloudflareHandler:
     Includes methods for dealing with various Cloudflare challenges.
     """
 
-    def __init__(self, page: ChromiumPage, logger):
+    def __init__(self, page: ChromiumPage, logger: Logger) -> None:
         self.page = page
         self.logger = logger
 
@@ -217,7 +234,9 @@ class DriCloudflareHandler:
         blocked = False
         if self.is_simple_blocked():
             self.logger.info(
-                "Cloudflare challenge detected - Solve attempt %d/%d", attempt + 1, retries
+                "Cloudflare challenge detected - Solve attempt %d/%d",
+                attempt + 1,
+                retries,
             )
             blocked = self.handle_cloudflare_turnstile()
         return blocked
@@ -251,7 +270,7 @@ class DriCloudflareHandler:
             container = self.page.s_ele(".cloudflare-container")
             turnstile_box = container.s_ele(".turnstile-box")
             turnstile_div = turnstile_box.s_ele("#cf-turnstile")
-            pos = turnstile_div.rect.click_point  # type: ignore
+            turnstile_div.rect.click_point()  # type: ignore
             self.page.wait(2)
             # pyautogui.moveTo(pos[0], pos[1] + 61, duration=0.5)
             # pyautogui.click()
@@ -261,13 +280,13 @@ class DriCloudflareHandler:
             self.logger.exception("Failed to solve new Cloudflare turnstile: %s", e)
         return blocked
 
-    def random_sleep(self, min_time, max_time):
+    def random_sleep(self, min_time: float, max_time: float) -> None:
         time.sleep(random.uniform(min_time, max_time))
 
 
 class DriBehavior(BaseBehavior):
     @staticmethod
-    def human_like_mouse_movement(page, element):
+    def human_like_mouse_movement(page: Any, element: Any) -> None:
         # Get the element's position
         rect = element.rect
         action_x = random.randint(-100, 100)
@@ -279,13 +298,13 @@ class DriBehavior(BaseBehavior):
         DriBehavior.random_sleep(*BaseBehavior.pause_time)
 
     @staticmethod
-    def human_like_click(page, element):
+    def human_like_click(page: Any, element: Any) -> None:
         DriBehavior.human_like_mouse_movement(page, element)
         page.mouse.click()
         DriBehavior.random_sleep(*BaseBehavior.pause_time)
 
     @staticmethod
-    def human_like_type(element, text):
+    def human_like_type(element: Any, text: str) -> None:
         for char in text:
             element.input(char)
             time.sleep(random.uniform(0.001, 0.2))
@@ -293,12 +312,12 @@ class DriBehavior(BaseBehavior):
 
 
 class DriScroll(BaseScroll):
-    def __init__(self, page: ChromiumPage, config, logger):
+    def __init__(self, page: ChromiumPage, config: "Config", logger: Logger) -> None:
         super().__init__(config, logger)
         self.page = page
         self.page.set.scroll.smooth(on_off=True)
 
-    def scroll_to_bottom(self):
+    def scroll_to_bottom(self) -> None:
         attempts = 0
         max_attempts = 10
         wait_time = (1, 2)
@@ -311,7 +330,9 @@ class DriScroll(BaseScroll):
         while attempts < max_attempts:
             scroll = scroll_length()
             self.logger.debug(
-                "Current position: %d, scrolling down by %d pixels", last_position, scroll
+                "Current position: %d, scrolling down by %d pixels",
+                last_position,
+                scroll,
             )
             self.page.run_js(f"window.scrollBy({{top: {scroll}, behavior: 'smooth'}});")
             self.page.wait(*wait_time)
@@ -322,20 +343,19 @@ class DriScroll(BaseScroll):
             last_position = new_position
             attempts += 1
 
-    def old_scroll_to_bottom(self):
+    def old_scroll_to_bottom(self) -> None:
         self.logger.info("Start scrolling the page")
         scroll_attempts = 0
         max_attempts = 45
         same_position_count = 0
         max_same_position_count = 3
-        last_position = 0
+        last_position = 0.0
         scrolled_up = False
 
         while scroll_attempts < max_attempts:
             scroll_attempts += 1
 
             current_position = self.get_current_position()
-            page_height = self.get_page_height()
 
             if current_position == last_position:
                 same_position_count += 1
@@ -375,7 +395,7 @@ class DriScroll(BaseScroll):
         else:
             self.logger.info("Page scroll completed")
 
-    def perform_scroll_action(self, scrolled_up):
+    def perform_scroll_action(self, scrolled_up: bool) -> bool:
         while True:
             action = random.choices(
                 ["scroll_down", "scroll_up", "pause", "jump"],
@@ -411,7 +431,7 @@ class DriScroll(BaseScroll):
             self.page.scroll.to_bottom()
             # self.page.scroll.to_see("@class=album-photo my-2")
 
-        return action == scrolled_up
+        return action == "scrolled_up"
 
     # def safe_scroll(self, target_position):
     #     """DrissionPage does not need safe_scroll."""
@@ -434,17 +454,17 @@ class DriScroll(BaseScroll):
     #     self.page.run_js(f"window.scrollTo(0, {target_position});")
     #     return self.get_current_position()
 
-    def get_current_position(self):
-        page_location = self.page.run_js("return window.pageYOffset;")
+    def get_current_position(self) -> float:
+        page_location: float = self.page.run_js("return window.pageYOffset;")
         self.logger.debug("Current vertical position %d", page_location)
         return page_location
 
-    def get_page_height(self):
-        page_height = self.page.run_js("return document.body.scrollHeight;")
+    def get_page_height(self) -> float:
+        page_height: float = self.page.run_js("return document.body.scrollHeight;")
         self.logger.debug("Total page height %d", page_height)
         return page_height
 
-    def wait_for_content_load(self):
+    def wait_for_content_load(self) -> None:
         try:
             # wait until the callable return true. default time_out=10
             wait_until(lambda: self.page.states.ready_state == "complete", timeout=5)

@@ -1,14 +1,14 @@
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import ClassVar, Generic, Literal, TypeAlias, TypeVar, Union, overload
+from typing import Any, ClassVar, Generic, Literal, TypeAlias, TypeVar, overload
 
 from lxml import html
 
 from ..common.config import Config, RuntimeConfig
 from ..common.const import BASE_URL, HEADERS
 from ..common.error import ScrapeError
-from ..utils import AlbumTracker, LinkParser, ThreadingService, ThreadJob, threading_download_job
+from ..utils import AlbumTracker, AsyncTask, LinkParser, async_download_image_task
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str
@@ -22,7 +22,7 @@ ScrapeType = Literal["album_list", "album_image"]
 class ScrapeManager:
     """Manage the starting and ending of the scraper."""
 
-    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
+    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot: Any) -> None:
         self.runtime_config = runtime_config
         self.base_config = base_config
 
@@ -31,12 +31,9 @@ class ScrapeManager:
         self.logger = runtime_config.logger
 
         # 初始化
-        self.download_service: ThreadingService = runtime_config.download_service
+        self.download_service = runtime_config.download_service
 
-        if not self.dry_run:
-            self.download_service.start_workers()
-
-    def start_scraping(self):
+    def start_scraping(self) -> None:
         """Start scraping based on URL type."""
         try:
             urls = self._load_urls()
@@ -47,11 +44,10 @@ class ScrapeManager:
         except ScrapeError as e:
             self.logger.exception("Scraping error: '%s'", e)
         finally:
-            if not self.dry_run:
-                self.download_service.wait_completion()
+            self.download_service.wait_completion()
             self.web_bot.close_driver()
 
-    def _load_urls(self):
+    def _load_urls(self) -> list[str]:
         """Load URLs from runtime_config (URL or txt file)."""
         if self.runtime_config.input_file:
             with open(self.runtime_config.input_file) as file:
@@ -73,11 +69,11 @@ class ScrapeHandler:
         "country": "album_list",
     }
 
-    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
+    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot: Any) -> None:
         self.web_bot = web_bot
         self.logger = runtime_config.logger
         self.runtime_config = runtime_config
-        self.strategies: dict[ScrapeType, BaseScraper] = {
+        self.strategies: dict[ScrapeType, BaseScraper[Any]] = {
             "album_list": AlbumScraper(runtime_config, base_config, web_bot),
             "album_image": ImageScraper(runtime_config, base_config, web_bot),
         }
@@ -118,19 +114,27 @@ class ScrapeHandler:
         self.logger.info("Found %d images in album %s", len(image_links), album_name)
 
         if dry_run:
-            for link, alt in image_links:
+            for link, _ in image_links:
                 self.logger.info("[DRY RUN] Image URL: %s", link)
         else:
             self.album_tracker.log_downloaded(album_url)
 
     @overload
     def _real_scrape(
-        self, url: str, start_page: int, scrape_type: Literal["album_list"], **kwargs
+        self,
+        url: str,
+        start_page: int,
+        scrape_type: Literal["album_list"],
+        **kwargs: dict[Any, Any],
     ) -> list[AlbumLink]: ...
 
     @overload
     def _real_scrape(
-        self, url: str, start_page: int, scrape_type: Literal["album_image"], **kwargs
+        self,
+        url: str,
+        start_page: int,
+        scrape_type: Literal["album_image"],
+        **kwargs: dict[Any, Any],
     ) -> list[ImageLinkAndALT]: ...
 
     def _real_scrape(
@@ -138,15 +142,17 @@ class ScrapeHandler:
         url: str,
         start_page: int,
         scrape_type: ScrapeType,
-        **kwargs,
+        **kwargs: dict[Any, Any],
     ) -> list[AlbumLink] | list[ImageLinkAndALT]:
         """Scrape pages for links using the appropriate strategy."""
         strategy = self.strategies[scrape_type]
         self.logger.info(
-            "Starting to scrape %s links from %s", "album" if scrape_type else "image", url
+            "Starting to scrape %s links from %s",
+            "album" if scrape_type else "image",
+            url,
         )
 
-        page_result: Union[list[AlbumLink], list[ImageLinkAndALT]] = []
+        page_result: list[AlbumLink] | list[ImageLinkAndALT] = []
         page = start_page
 
         while True:
@@ -176,7 +182,7 @@ class ScrapeHandler:
                 self.logger.info("Reach last page, stopping")
                 break
 
-            page = self._handle_pagination(page, **kwargs)
+            page = self._handle_pagination(page)
 
         return page_result
 
@@ -192,7 +198,7 @@ class ScrapeHandler:
             time.sleep(consecutive_sleep)
         return next_page
 
-    def _get_scrape_type(self):
+    def _get_scrape_type(self) -> ScrapeType:
         """Get the appropriate handler method based on URL path."""
         for part in self.path_parts:
             if part in self.URL_HANDLERS:
@@ -203,11 +209,11 @@ class ScrapeHandler:
 class BaseScraper(Generic[LinkType], ABC):
     """Abstract base class for different scraping strategies."""
 
-    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
+    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot: Any) -> None:
         self.runtime_config = runtime_config
         self.config = base_config
         self.web_bot = web_bot
-        self.download_service: ThreadingService = runtime_config.download_service
+        self.download_service = runtime_config.download_service
         self.logger = runtime_config.logger
 
     @abstractmethod
@@ -221,7 +227,7 @@ class BaseScraper(Generic[LinkType], ABC):
         page_result: list[LinkType],
         tree: html.HtmlElement,
         page: int,
-        **kwargs,
+        **kwargs: dict[Any, Any],
     ) -> None:
         """Process links found on the page."""
 
@@ -240,7 +246,7 @@ class AlbumScraper(BaseScraper[AlbumLink]):
         page_result: list[AlbumLink],
         tree: html.HtmlElement,
         page: int,
-        **kwargs,
+        **kwargs: dict[Any, Any],
     ) -> None:
         page_result.extend([BASE_URL + album_link for album_link in page_links])
         self.logger.info("Found %d albums on page %d", len(page_links), page)
@@ -252,7 +258,7 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
     XPATH_ALBUM = '//div[@class="album-photo my-2"]/img/@data-src'
     XPATH_ALTS = '//div[@class="album-photo my-2"]/img/@alt'
 
-    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot):
+    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot: Any) -> None:
         super().__init__(runtime_config, base_config, web_bot)
         self.dry_run = runtime_config.dry_run
         self.alt_counter = 0
@@ -266,7 +272,7 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
         page_result: list[ImageLinkAndALT],
         tree: html.HtmlElement,
         page: int,
-        **kwargs,
+        **kwargs: dict[Any, Any],
     ) -> None:
         alts: list[str] = tree.xpath(self.XPATH_ALTS)
 
@@ -276,17 +282,16 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
             alts.extend(missing_alts)
             self.alt_counter += len(missing_alts)
 
-        page_result.extend(zip(page_links, alts))
+        page_result.extend(zip(page_links, alts, strict=False))
 
         # Handle downloads if not in dry run mode
         if not self.dry_run:
             album_name = self._extract_album_name(alts)
 
             # assign download job for each image
-            for i, (url, alt) in enumerate(zip(page_links, alts)):
-                task = ThreadJob(
-                    task_id=f"{album_name}_{i}",
-                    func=threading_download_job,
+            for i, (url, alt) in enumerate(zip(page_links, alts, strict=False)):
+                task = AsyncTask(
+                    func=async_download_image_task,
                     args=(f"{album_name}_{i}",),
                     kwargs={
                         "url": url,
@@ -298,7 +303,7 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
                         "logger": self.logger,
                     },
                 )
-                self.download_service.add_task(task)
+                self.download_service.produce_task(task)
 
         self.logger.info("Found %d images on page %d", len(page_links), page)
 

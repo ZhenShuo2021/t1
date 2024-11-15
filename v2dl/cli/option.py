@@ -1,8 +1,8 @@
-import argparse
 import logging
+import argparse
 
 
-def parse_arguments():
+def parse_arguments() -> tuple[argparse.Namespace, int]:
     formatter = lambda prog: argparse.HelpFormatter(prog, max_help_position=36)
     parser = argparse.ArgumentParser(description="V2PH scraper.", formatter_class=formatter)
 
@@ -51,7 +51,11 @@ def parse_arguments():
     log_group.add_argument("-q", "--quiet", action="store_true", help="Quiet mode")
     log_group.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
     log_group.add_argument(
-        "--log-level", default=None, type=int, choices=range(1, 6), help="Set log level (1~5)"
+        "--log-level",
+        default=None,
+        type=int,
+        choices=range(1, 6),
+        help="Set log level (1~5)",
     )
 
     args = parser.parse_args()

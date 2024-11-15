@@ -1,15 +1,16 @@
 # cli interface of AccountManager
+import os
+import sys
 import getpass
 import logging
-import os
 import platform
-import sys
 from collections import OrderedDict
 from typing import Any
 
 import questionary
 from nacl.public import PrivateKey, PublicKey
 
+from ..common.config import EncryptionConfig
 from ..utils.security import AccountManager, KeyManager
 
 
@@ -24,12 +25,11 @@ def display_menu() -> Any:
         {"name": "Quit", "value": "quit"},
     ]
 
-    answer = questionary.select("Please choose an action:", choices=choices).ask()
-    return answer
+    return questionary.select("Please choose an action:", choices=choices).ask()
 
 
 def clean_terminal() -> None:
-    os.system("cls" if os.name == "nt" else "clear")
+    os.system("cls" if os.name == "nt" else "clear")  # nosec
 
 
 def create_account(am: AccountManager, public_key: PublicKey) -> None:
@@ -118,20 +118,20 @@ def list_accounts(am: AccountManager) -> None:
     if accounts:
         for username, info in accounts.items():
             print(
-                f"Account: {username}, Exceed quota: {info['exceed_quota'] or 'Null'}, Exceed time: {info['exceed_time'] or 'Null'}, Created At: {info['created_at']}"
+                f"Account: {username}, Exceed quota: {info['exceed_quota'] or 'Null'}, Exceed time: {info['exceed_time'] or 'Null'}, Created At: {info['created_at']}",
             )
     else:
         print("No accounts available.")
 
 
-def get_pass(prompt="Password: "):
+def get_pass(prompt: str = "Password: ") -> str:
     if platform.system() == "Windows":
         return input(prompt)
     else:
         return getpass.getpass(prompt)
 
 
-def cli(encrypt_config) -> None:
+def cli(encrypt_config: EncryptionConfig) -> None:
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     clean_terminal()

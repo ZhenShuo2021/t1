@@ -1,5 +1,5 @@
-import logging
 import os
+import logging
 from typing import ClassVar
 
 from colorama import Fore, Style, init
@@ -8,7 +8,7 @@ init()
 
 
 class CustomFormatter(logging.Formatter):
-    COLORS: ClassVar[dict] = {
+    COLORS: ClassVar[dict[int, str]] = {
         logging.DEBUG: Fore.LIGHTBLACK_EX,
         logging.INFO: Fore.WHITE,
         logging.WARNING: Fore.YELLOW,
@@ -18,25 +18,22 @@ class CustomFormatter(logging.Formatter):
     GREEN = Fore.GREEN
     RESET = Style.RESET_ALL
 
-    def __init__(self, use_color=True):
+    def __init__(self, use_color: bool = True) -> None:
         super().__init__()
         self.use_color = use_color
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         if self.use_color:
             color = self.COLORS.get(record.levelno, self.RESET)
             levelname = record.levelname.lower()
-            return (
-                f"[{self.GREEN}{self.formatTime(record, '%H:%M:%S')}{self.RESET}]"
-                f"[{color}{levelname}{self.RESET}] - {record.getMessage()}"
-            )
+            return f"[{self.GREEN}{self.formatTime(record, '%H:%M:%S')}{self.RESET}][{color}{levelname}{self.RESET}] - {record.getMessage()}"
         else:
             # Convert levelname to lowercase for file logs
             levelname = record.levelname.lower()
             return f"[{self.formatTime(record, '%H:%M:%S')}][{levelname}] - {record.getMessage()}"
 
 
-def setup_logging(level, log_path, no_archive=False):
+def setup_logging(level: int, log_path: str, no_archive: bool = False) -> None:
     """level: [logging.LOGLEVEL]
     args: [bool], no_archive..
     """

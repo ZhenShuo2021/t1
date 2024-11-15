@@ -2,14 +2,13 @@ import sys
 
 if sys.version_info < (3, 10):
     raise ImportError(
-        "You are using an unsupported version of Python. Only Python versions 3.10 and above are supported by v2dl"
+        "You are using an unsupported version of Python. Only Python versions 3.10 and above are supported by v2dl",
     )
 
-import logging
 import sys
+import logging
 
-from .cli.account_cli import cli
-from .cli.option import parse_arguments
+from .cli import cli, parse_arguments
 from .common import (
     DEFAULT_CONFIG,
     Config,
@@ -21,7 +20,7 @@ from .common import (
     setup_logging,
 )
 from .core import ScrapeHandler, ScrapeManager
-from .utils import ThreadingService, check_input_file
+from .utils import AsyncTaskManager, ThreadingService, check_input_file
 from .version import __version__
 from .web_bot import get_bot
 
@@ -41,11 +40,11 @@ __all__ = [
 ]
 
 
-def main():
+def main() -> int:
     args, log_level = parse_arguments()
 
     if args.version:
-        print(f"{__version__}")
+        print(f"{__version__}")  # noqa: T201
         sys.exit(0)
 
     app_config = ConfigManager(DEFAULT_CONFIG).load()
@@ -58,7 +57,7 @@ def main():
 
     setup_logging(log_level, log_path=app_config.paths.system_log)
     logger = logging.getLogger(__name__)
-    download_service: ThreadingService = ThreadingService(logger, num_workers=3)
+    download_service: AsyncTaskManager = AsyncTaskManager(logger, 3)
 
     runtime_config = RuntimeConfig(
         url=args.url,
@@ -78,3 +77,5 @@ def main():
     web_bot = get_bot(runtime_config, app_config)
     scraper = ScrapeManager(runtime_config, app_config, web_bot)
     scraper.start_scraping()
+
+    return 0

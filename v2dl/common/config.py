@@ -1,6 +1,7 @@
 import os
 import platform
 from dataclasses import dataclass
+from logging import Logger
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,7 @@ class RuntimeConfig:
     terminate: bool
     download_service: Any
     dry_run: bool
-    logger: Any
+    logger: Logger
     log_level: int
     no_skip: bool = False
     use_chrome_default_profile: bool = False
@@ -65,7 +66,7 @@ class Config:
 
 class PathTool:
     @staticmethod
-    def resolve_abs_path(path, base_dir):
+    def resolve_abs_path(path: str | Path, base_dir: str | Path) -> str | Path:
         """Resolve '~', add path with base_dir if input is not absolute path."""
         path = os.path.expanduser(path)
         return os.path.join(base_dir, path) if not os.path.isabs(path) else path
@@ -94,11 +95,13 @@ class PathTool:
         return str(result_dir)
 
     @staticmethod
-    def get_chrome_exec_path(config_data: dict) -> str:
+    def get_chrome_exec_path(config_data: dict[str, Any]) -> str:
         current_os = platform.system()
         exec_path = config_data["chrome"]["exec_path"].get(current_os)
         if not exec_path:
             raise ValueError(f"Unsupported OS: {current_os}")
+        if not isinstance(exec_path, str):
+            raise TypeError(f"Expected a string for exec_path, got {type(exec_path).__name__}")
         return exec_path
 
 
@@ -139,7 +142,8 @@ class ConfigManager(PathTool):
             self.config["paths"][key] = ConfigManager.resolve_abs_path(path, system_config_dir)
 
         self.config["chrome"]["profile_path"] = ConfigManager.resolve_abs_path(
-            self.config["chrome"]["profile_path"], system_config_dir
+            self.config["chrome"]["profile_path"],
+            system_config_dir,
         )
 
         # Check download_dir path
@@ -157,7 +161,7 @@ class ConfigManager(PathTool):
         )
 
     @staticmethod
-    def _merge_config(base: dict[str, Any], custom: dict[str, Any]) -> dict:
+    def _merge_config(base: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
         """Recursively merge custom config into base config."""
         for key, value in custom.items():
             if isinstance(value, dict) and key in base:

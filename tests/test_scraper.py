@@ -1,6 +1,6 @@
-import logging
 import os
 import shutil
+import logging
 import threading
 from pathlib import Path
 
@@ -8,7 +8,7 @@ import pytest
 
 from v2dl import ConfigManager, RuntimeConfig, ScrapeManager, setup_logging
 from v2dl.common.const import DEFAULT_CONFIG
-from v2dl.utils import ThreadingService
+from v2dl.utils import AsyncTaskManager
 from v2dl.web_bot import get_bot
 
 os.environ["V2PH_USERNAME"] = "naf02905@inohm.com"  # temp account for testing
@@ -35,7 +35,7 @@ def setup_test_env(tmp_path, request):
     config.download.min_scroll_step = config.download.min_scroll_length * 4
     config.download.max_scroll_step = config.download.min_scroll_length * 4 + 1
 
-    download_service: ThreadingService = ThreadingService(logger)
+    download_service: AsyncTaskManager = AsyncTaskManager(logger)
 
     runtime_config = RuntimeConfig(
         url=test_url,
@@ -73,11 +73,9 @@ def test_download(setup_test_env):
     timeout = 30
     scraper, test_download_dir = setup_test_env
     valid_extensions = (".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG")
-    print("6")
 
     thread = threading.Thread(target=scraper.start_scraping)
     thread.start()
-    print("7")
     thread.join(timeout)
 
     subdirectories = os.listdir(test_download_dir)

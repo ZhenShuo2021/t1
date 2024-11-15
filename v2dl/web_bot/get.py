@@ -1,16 +1,16 @@
 import time
+from typing import Any
 
-from ..common import Config, RuntimeConfig
-from ..utils import AccountManager, KeyManager
 from .drission_bot import DrissionBot
 from .selenium_bot import SeleniumBot
+from ..common import Config, RuntimeConfig
+from ..utils import AccountManager, KeyManager
 
 
-def get_bot(runtime_config: RuntimeConfig, app_config: Config):
+def get_bot(runtime_config: RuntimeConfig, app_config: Config) -> Any:
     bot_classes = {"selenium": SeleniumBot, "drission": DrissionBot}
 
     bot_type = runtime_config.bot_type
-    close_browser = runtime_config.terminate
     logger = runtime_config.logger
     key_manager = KeyManager(logger, app_config.encryption)
     account_manager = AccountManager(logger, key_manager)
@@ -25,7 +25,7 @@ def get_bot(runtime_config: RuntimeConfig, app_config: Config):
     return bot
 
 
-def init_new_profile(bot):
+def init_new_profile(bot: Any) -> None:
     # visit some websites for new chrome profile
     websites = [
         "https://www.google.com",

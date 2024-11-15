@@ -1,22 +1,22 @@
+import os
+import sys
 import atexit
 import base64
 import ctypes
-import logging
-import os
 import random
 import secrets
-import sys
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal, overload
+from logging import Logger
+from typing import Any, Literal, overload
 
 import yaml
 from dotenv import load_dotenv, set_key
 from nacl.public import PrivateKey, PublicKey, SealedBox
 from nacl.pwhash import argon2id
 from nacl.secret import SecretBox
-from nacl.utils import random as nacl_random
+from nacl.utils import EncryptedMessage, random as nacl_random
 
 from ..common.config import ConfigManager, EncryptionConfig
 from ..common.error import SecurityError
@@ -31,7 +31,7 @@ class KeyPair:
 class Encryptor:
     """Managing encryption and decryption operations."""
 
-    def __init__(self, logger, encrypt_config: EncryptionConfig) -> None:
+    def __init__(self, logger: Logger, encrypt_config: EncryptionConfig) -> None:
         self.logger = logger
         self.encrypt_config = encrypt_config
 
@@ -49,19 +49,22 @@ class Encryptor:
         return encrypted_master_key, salt, encryption_key
 
     def decrypt_master_key(
-        self, encrypted_master_key: bytes, salt: str, encryption_key: str
+        self,
+        encrypted_master_key: bytes,
+        salt: str,
+        encryption_key: str,
     ) -> bytes:
         salt_b64 = base64.b64decode(salt)
         enc_key_b64 = base64.b64decode(encryption_key)
         derived_key = self.derive_key(enc_key_b64, salt_b64)
         box = SecretBox(derived_key)
+
         master_key = box.decrypt(encrypted_master_key)
 
-        cleanup([derived_key, enc_key_b64])
         self.logger.info("Master key decryption successful")
         return master_key
 
-    def encrypt_private_key(self, private_key: PrivateKey, master_key: bytes) -> bytes:
+    def encrypt_private_key(self, private_key: PrivateKey, master_key: bytes) -> EncryptedMessage:
         box = SecretBox(master_key)
         nonce = nacl_random(self.encrypt_config.nonce_bytes)
         return box.encrypt(private_key.encode(), nonce)
@@ -90,14 +93,13 @@ class Encryptor:
             raise SecurityError from e
 
     def derive_key(self, encryption_key: bytes, salt: bytes) -> bytes:
-        derived_key = argon2id.kdf(
+        return argon2id.kdf(
             self.encrypt_config.key_bytes,
             encryption_key,
             salt,
             opslimit=self.encrypt_config.kdf_ops_limit,
             memlimit=self.encrypt_config.kdf_mem_limit,
         )
-        return derived_key
 
     def validate_keypair(self, private_key: PrivateKey, public_key: PublicKey) -> None:
         try:
@@ -118,12 +120,17 @@ class Encryptor:
 class KeyIOHelper(Encryptor):
     """Manage the loading, saving, and validation of cryptographic keys."""
 
-    def __init__(self, logger, path_config: dict | None, encrypt_config: EncryptionConfig) -> None:
+    def __init__(
+        self,
+        logger: Logger,
+        path_config: dict[str, str] | None,
+        encrypt_config: EncryptionConfig,
+    ) -> None:
         super().__init__(logger, encrypt_config)
         self.logger = logger
         self.path_config = self.init_conf(path_config)
 
-    def init_conf(self, path_config: dict | None) -> dict:
+    def init_conf(self, path_config: dict[str, str] | None) -> dict[str, str]:
         if path_config is None:
             base_dir = ConfigManager.get_system_config_dir()
             self.logger.debug("Initializing config with base directory: %s", base_dir)
@@ -172,7 +179,7 @@ class KeyIOHelper(Encryptor):
         encrypted_private_key = SecureFileHandler.read_file(_path, False)
         return self.decrypt_private_key(encrypted_private_key, master_key)
 
-    def save_keys(self, keys: tuple) -> None:
+    def save_keys(self, keys: tuple[bytes, bytes, PublicKey, bytes, bytes]) -> None:
         SecureFileHandler.write_file(self.path_config["master_key_file"], keys[0])
         SecureFileHandler.write_file(self.path_config["private_key_file"], keys[1])
         SecureFileHandler.write_file(self.path_config["public_key_file"], keys[2].encode(), 0o644)
@@ -198,9 +205,9 @@ class KeyManager(KeyIOHelper):
 
     def __init__(
         self,
-        logger,
+        logger: Logger,
         encrypt_config: EncryptionConfig,
-        path_dict: dict | None = None,
+        path_dict: dict[str, str] | None = None,
     ) -> None:
         super().__init__(logger, path_dict, encrypt_config)
         self.check_folder()
@@ -209,7 +216,7 @@ class KeyManager(KeyIOHelper):
         if keys is not None:
             self.save_keys(keys)
 
-    def _init_keys(self) -> tuple | None:
+    def _init_keys(self) -> tuple[bytes, bytes, PublicKey, bytes, bytes] | None:
         if self._keys_exist():
             self.logger.info("Key pair already exists")
             return None
@@ -219,10 +226,10 @@ class KeyManager(KeyIOHelper):
 
     def _keys_exist(self) -> bool:
         return os.path.exists(self.path_config["private_key_file"]) and os.path.exists(
-            self.path_config["public_key_file"]
+            self.path_config["public_key_file"],
         )
 
-    def _generate_and_encrypt_keys(self) -> tuple:
+    def _generate_and_encrypt_keys(self) -> tuple[bytes, bytes, PublicKey, bytes, bytes]:
         keys = self._generate_key_pair()
         master_key = secrets.token_bytes(self.encrypt_config.key_bytes)
         encrypted_master_key, salt, encryption_key = self.encrypt_master_key(master_key)
@@ -246,7 +253,7 @@ class KeyManager(KeyIOHelper):
 class AccountManager:
     MAX_QUOTA = 16
 
-    def __init__(self, logger: logging.Logger, key_manager: KeyManager, yaml_path: str = ""):
+    def __init__(self, logger: Logger, key_manager: KeyManager, yaml_path: str = ""):
         self.logger = logger
         self.yaml_path = (
             yaml_path
@@ -280,15 +287,15 @@ class AccountManager:
                 self.logger.error("Account %s not found.", username)
             self._save_yaml()
 
-    def read(self, username: str) -> dict:
-        return self.accounts.get(username, {})
+    def read(self, username: str) -> dict[str, Any] | None:
+        return self.accounts.get(username)
 
     def edit(
         self,
         public_key: PublicKey,
         old_username: str,
-        new_username: str = "",
-        new_password: str = "",
+        new_username: str | None,
+        new_password: str | None,
     ) -> None:
         with self.lock:
             if old_username in self.accounts:
@@ -303,7 +310,7 @@ class AccountManager:
             else:
                 self.logger.error("Account not found.")
 
-    def update_status(self, username: str, field: str, new_value) -> None:
+    def update_status(self, username: str, field: str, new_value: Any) -> None:
         with self.lock:
             account = self.accounts.get(username)
             if account:
@@ -368,7 +375,7 @@ class AccountManager:
                 yaml.dump(self.accounts, file, default_flow_style=False)
         # self.logger.info("Successfully update accounts information.")
 
-    def _load_yaml(self) -> dict:
+    def _load_yaml(self) -> dict[str, Any]:
         try:
             with open(self.yaml_path) as file:
                 return yaml.safe_load(file) or {}
@@ -407,7 +414,7 @@ class SecureFileHandler:
             value = base64.b64encode(value).decode("utf-8")
 
         load_dotenv(env_path)
-        set_key(env_path, key, value)  # type: ignore
+        set_key(env_path, key, value)
 
     @staticmethod
     def read_env(key: str) -> str:

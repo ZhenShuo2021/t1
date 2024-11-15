@@ -1,8 +1,9 @@
-import random
-import subprocess
 import sys
 import time
-from subprocess import Popen
+import random
+from logging import Logger
+from subprocess import run
+from typing import TYPE_CHECKING, Any
 
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
@@ -12,11 +13,15 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webdriver import WebDriver
-from selenium.webdriver.support import expected_conditions as EC  # noqa: N812
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from ..common.const import SELENIUM_AGENT
 from .base import BaseBehavior, BaseBot, BaseScroll
+from ..common import SELENIUM_AGENT
+
+if TYPE_CHECKING:
+    from ..common import Config, RuntimeConfig
+    from ..utils import AccountManager, KeyManager
 
 DEFAULT_BOT_OPT = [
     "--remote-debugging-port=9222",
@@ -32,15 +37,20 @@ DEFAULT_BOT_OPT = [
 
 
 class SeleniumBot(BaseBot):
-    def __init__(self, runtime_config, base_config, key_manager, account_manager):
+    def __init__(
+        self,
+        runtime_config: "RuntimeConfig",
+        base_config: "Config",
+        key_manager: "KeyManager",
+        account_manager: "AccountManager",
+    ) -> None:
         super().__init__(runtime_config, base_config, key_manager, account_manager)
         self.init_driver()
         self.scroller = SelScroll(self.driver, self.config, self.logger)
         self.cloudflare = SelCloudflareHandler(self.driver, self.logger)
 
-    def init_driver(self):
+    def init_driver(self) -> None:
         self.driver: WebDriver
-        self.chrome_process: Popen
         options = Options()
 
         chrome_path = [self.config.chrome.exec_path]
@@ -52,7 +62,7 @@ class SeleniumBot(BaseBot):
             user_data_dir = self.prepare_chrome_profile()
             subprocess_cmd.append(f"--user-data-dir={user_data_dir}")
 
-        self.chrome_process = subprocess.Popen(subprocess_cmd)
+        self.chrome_process = run(subprocess_cmd, check=True)
 
         options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
         try:
@@ -65,14 +75,18 @@ class SeleniumBot(BaseBot):
         # height = random.randint(768, 1080)
         # self.driver.set_window_size(1920, 1080)
 
-    def close_driver(self):
+    def close_driver(self) -> None:
         pass
         # if self.close_browser:
         #     self.driver.quit()
         #     self.chrome_process.terminate()
 
     def auto_page_scroll(
-        self, url: str, max_retry: int = 3, page_sleep: int = 5, fast_scroll: bool = False
+        self,
+        url: str,
+        max_retry: int = 3,
+        page_sleep: int = 5,
+        fast_scroll: bool = False,
     ) -> str:
         """Scroll page automatically with retries and Cloudflare challenge handle.
 
@@ -95,7 +109,8 @@ class SeleniumBot(BaseBot):
 
                 if not self.handle_redirection_fail(url, max_retry, page_sleep):
                     self.logger.error(
-                        "Reconnection fail for URL %s. Please check your network status.", url
+                        "Reconnection fail for URL %s. Please check your network status.",
+                        url,
                     )
                     break
 
@@ -153,18 +168,15 @@ class SeleniumBot(BaseBot):
 
         return self.driver.current_url == url
 
-    def handle_login(self):
+    def handle_login(self) -> None:
         success = False
         if self.driver.find_elements(
-            By.XPATH, "//h1[@class='h4 text-secondary mb-4 login-box-msg']"
+            By.XPATH,
+            "//h1[@class='h4 text-secondary mb-4 login-box-msg']",
         ):
             self.logger.info("Login page detected - Starting login process")
             try:
                 self.email, self.password = self.account_manager.random_pick(self.private_key)
-                if self.email is None or self.password is None:
-                    self.logger.critical("Email and password not provided")
-                    sys.exit("Automated login failed.")
-
                 email_field = self.driver.find_element(By.ID, "email")
                 password_field = self.driver.find_element(By.ID, "password")
                 BaseBehavior.random_sleep(0.5, 1)
@@ -194,13 +206,15 @@ class SeleniumBot(BaseBot):
                     self.logger.exception("Error handling Cloudflare reCAPTCHA: %s", e)
 
                 self.driver.find_element(
-                    By.XPATH, '//button[@type="submit" and @class="btn btn-primary btn-block"]'
+                    By.XPATH,
+                    '//button[@type="submit" and @class="btn btn-primary btn-block"]',
                 ).click()
 
                 SelBehavior.random_sleep(3, 5)
 
                 if not self.driver.find_elements(
-                    By.XPATH, "//h1[@class='h4 text-secondary mb-4 login-box-msg']"
+                    By.XPATH,
+                    "//h1[@class='h4 text-secondary mb-4 login-box-msg']",
                 ):
                     self.logger.info("Login successful")
                     success = True
@@ -220,14 +234,14 @@ class SeleniumBot(BaseBot):
             self.logger.critical("Automated login failed. Please login yourself.")
             sys.exit("Automated login failed.")
 
-    def check_login_errors(self):
+    def check_login_errors(self) -> None:
         error_messages = self.driver.find_elements(By.CLASS_NAME, "errorMessage")
         if error_messages:
             for message in error_messages:
                 self.logger.error("Login error: %s", message.text)
         else:
             self.logger.warning(
-                "No specific error message found. Login might have failed for unknown reasons."
+                "No specific error message found. Login might have failed for unknown reasons.",
             )
 
 
@@ -237,7 +251,7 @@ class SelCloudflareHandler:
     Includes methods for dealing with various Cloudflare challenges.
     """
 
-    def __init__(self, driver: WebDriver, logger):
+    def __init__(self, driver: WebDriver, logger: Logger):
         self.driver = driver
         self.logger = logger
 
@@ -276,18 +290,18 @@ class SelCloudflareHandler:
             self.logger.critical("Cloudflare hard block detected")
         return is_blocked
 
-    def handle_cloudflare_turnstile(self):
+    def handle_cloudflare_turnstile(self) -> None:
         try:
             iframe = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((
                     By.XPATH,
                     "//iframe[contains(@src, 'challenges.cloudflare.com')]",
-                ))
+                )),
             )
             self.driver.switch_to.frame(iframe)
 
             checkbox = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, "cf-turnstile-response"))
+                EC.element_to_be_clickable((By.ID, "cf-turnstile-response")),
             )
             SelBehavior.human_like_click(self.driver, checkbox)
 
@@ -299,35 +313,38 @@ class SelCloudflareHandler:
         except (TimeoutException, NoSuchElementException):
             self.logger.error("Unable to solve Cloudflare challenge.")
 
-    def handle_cloudflare_recaptcha(self):
+    def handle_cloudflare_recaptcha(self) -> None:
         try:
             recaptcha_checkbox = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//input[@type='checkbox']"))
+                EC.element_to_be_clickable((By.XPATH, "//input[@type='checkbox']")),
             )
             SelBehavior.human_like_click(self.driver, recaptcha_checkbox)
 
             verify_button = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '驗證您是人類')]"))
+                EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '驗證您是人類')]")),
             )
             SelBehavior.human_like_click(self.driver, verify_button)
 
             SelBehavior.random_sleep(3, 5)
         except (TimeoutException, NoSuchElementException) as e:
             self.logger.warning(
-                "reCAPTCHA checkbox or verify button not found or unable to interact: %s", e
+                "reCAPTCHA checkbox or verify button not found or unable to interact: %s",
+                e,
             )
 
-    def solve_image_captcha(self):
+    def solve_image_captcha(self) -> None:
         raise NotImplementedError
 
 
 class SelBehavior(BaseBehavior):
     @staticmethod
-    def human_like_mouse_movement(driver, element):
+    def human_like_mouse_movement(driver: Any, element: Any) -> None:
         action = ActionChains(driver)
         action.move_by_offset(random.randint(-100, 100), random.randint(-100, 100))
         action.move_to_element_with_offset(
-            element, random.randint(-10, 10), random.randint(-10, 10)
+            element,
+            random.randint(-10, 10),
+            random.randint(-10, 10),
         )
         action.pause(random.uniform(0.1, 0.3))
         action.move_to_element(element)
@@ -335,7 +352,7 @@ class SelBehavior(BaseBehavior):
         SelBehavior.random_sleep(*BaseBehavior.pause_time)
 
     @staticmethod
-    def human_like_click(driver, element):
+    def human_like_click(driver: Any, element: Any) -> None:
         SelBehavior.human_like_mouse_movement(driver, element)
         action = ActionChains(driver)
         action.click()
@@ -343,7 +360,7 @@ class SelBehavior(BaseBehavior):
         SelBehavior.random_sleep(*BaseBehavior.pause_time)
 
     @staticmethod
-    def human_like_type(element, text):
+    def human_like_type(element: Any, text: str) -> None:
         for char in text:
             element.send_keys(char)
             time.sleep(random.uniform(0.001, 0.2))
@@ -351,11 +368,11 @@ class SelBehavior(BaseBehavior):
 
 
 class SelScroll(BaseScroll):
-    def __init__(self, driver: WebDriver, config, logger):
+    def __init__(self, driver: WebDriver, config: "Config", logger: Logger):
         super().__init__(config, logger)
         self.driver = driver
 
-    def scroll_to_bottom(self):
+    def scroll_to_bottom(self) -> None:
         max_attempts = 10
         attempts = 0
         last_position = -123459
@@ -368,7 +385,9 @@ class SelScroll(BaseScroll):
             SelBehavior.random_sleep(1, 2)
             scroll = scroll_length()
             self.logger.debug(
-                "Current position: %d, scrolling down by %d pixels", last_position, scroll
+                "Current position: %d, scrolling down by %d pixels",
+                last_position,
+                scroll,
             )
             self.driver.execute_script(f"window.scrollBy({{top: {scroll}, behavior: 'smooth'}});")
             new_position = self.driver.execute_script("return window.pageYOffset;")
@@ -377,7 +396,7 @@ class SelScroll(BaseScroll):
             last_position = new_position
             attempts += 1
 
-    def old_scroll_to_bottom(self):
+    def old_scroll_to_bottom(self) -> None:
         self.logger.info("Start scrolling the page")
         scroll_attempts = 0
         max_attempts = 45
@@ -402,7 +421,8 @@ class SelScroll(BaseScroll):
             scroll_pos_init = scroll_pos_end
 
             step_scroll = random.randint(
-                self.config.download.min_scroll_length, self.config.download.max_scroll_length
+                self.config.download.min_scroll_length,
+                self.config.download.max_scroll_length,
             )
 
             self.wait_for_content_load()
@@ -427,7 +447,7 @@ class SelScroll(BaseScroll):
         else:
             self.logger.info("Page scroll completed")
 
-    def perform_scroll_action(self):
+    def perform_scroll_action(self) -> None:
         action = random.choices(
             ["scroll_down", "scroll_up", "pause", "jump"],
             weights=[0.7, 0.1, 0.1, 0.1],
@@ -464,7 +484,7 @@ class SelScroll(BaseScroll):
             actual_position = self.safe_scroll(jump_position)
             self.logger.debug("Actually jumped to %d", actual_position)
 
-    def safe_scroll(self, target_position):
+    def safe_scroll(self, target_position: float) -> float:
         current_position = self.get_scroll_position()
         step = random.uniform(
             self.config.download.min_scroll_step,
@@ -488,16 +508,16 @@ class SelScroll(BaseScroll):
         self.driver.execute_script(f"window.scrollTo(0, {target_position});")
         return self.get_scroll_position()
 
-    def get_scroll_position(self):
+    def get_scroll_position(self) -> float:
         return self.driver.execute_script("return window.pageYOffset")
 
-    def get_page_height(self):
+    def get_page_height(self) -> float:
         return self.driver.execute_script("return document.body.scrollHeight")
 
-    def wait_for_content_load(self):
+    def wait_for_content_load(self) -> None:
         try:
             WebDriverWait(self.driver, 5).until(
-                lambda d: d.execute_script("return document.readyState") == "complete"
+                lambda d: d.execute_script("return document.readyState") == "complete",
             )
         except TimeoutException:
             self.logger.warning("Timeout waiting for new content to load")

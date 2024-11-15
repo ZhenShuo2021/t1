@@ -1,5 +1,5 @@
-import logging
 import re
+from logging import Logger
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from lxml import html
@@ -17,7 +17,7 @@ class LinkParser:
         return path_parts, start_page
 
     @staticmethod
-    def parse_html(html_content: str, logger: logging.Logger) -> html.HtmlElement | None:
+    def parse_html(html_content: str, logger: Logger) -> html.HtmlElement | None:
         if "Failed" in html_content:
             return None
 
@@ -31,7 +31,7 @@ class LinkParser:
     def get_max_page(tree: html.HtmlElement) -> int:
         """Parse pagination count."""
         page_links = tree.xpath(
-            '//li[@class="page-item"]/a[@class="page-link" and string-length(text()) <= 2]/@href'
+            '//li[@class="page-item"]/a[@class="page-link" and string-length(text()) <= 2]/@href',
         )
 
         if not page_links:
@@ -81,5 +81,4 @@ class LinkParser:
         new_query = urlencode(query_params, doseq=True)
 
         # Rebuild the full URL
-        new_url = urlunparse(parsed_url._replace(query=new_query))
-        return new_url
+        return urlunparse(parsed_url._replace(query=new_query))
