@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path
 
-import requests
+import httpx
 
 from .parser import LinkParser
 
@@ -128,7 +128,7 @@ def download_image(
         download(url, save_path, headers, rate_limit)
         logger.info("Downloaded: '%s'", save_path)
         return True
-    except requests.exceptions.HTTPError as http_err:
+    except httpx.HTTPStatusError as http_err:
         logger.error("HTTP error occurred: %s", http_err)
         return False
     except Exception as e:
@@ -141,28 +141,28 @@ def download(url: str, save_path: Path, headers: dict, speed_limit_kbps: int = 1
 
     Default speed limit is 1536 KBps (1.5 MBps).
     """
-
     if headers is None:
         headers = {}
     chunk_size = 1024
-    speed_limit_bps = speed_limit_kbps * 1024  # 轉換為 bytes per second
+    speed_limit_bps = speed_limit_kbps * 1024  # Convert to bytes per second
 
-    response = requests.get(url, stream=True, headers=headers)
-    response.raise_for_status()  # 確認請求成功
+    with httpx.Client() as client:
+        with client.stream("GET", url, headers=headers) as response:
+            response.raise_for_status()  # Check if request was successful
 
-    with open(save_path, "wb") as file:
-        start_time = time.time()
-        downloaded = 0
+            with open(save_path, "wb") as file:
+                start_time = time.time()
+                downloaded = 0
 
-        for chunk in response.iter_content(chunk_size=chunk_size):
-            file.write(chunk)
-            downloaded += len(chunk)
+                for chunk in response.iter_bytes(chunk_size=chunk_size):
+                    file.write(chunk)
+                    downloaded += len(chunk)
 
-            elapsed_time = time.time() - start_time
-            expected_time = downloaded / speed_limit_bps
+                    elapsed_time = time.time() - start_time
+                    expected_time = downloaded / speed_limit_bps
 
-            if elapsed_time < expected_time:
-                time.sleep(expected_time - elapsed_time)
+                    if elapsed_time < expected_time:
+                        time.sleep(expected_time - elapsed_time)
 
 
 def get_image_extension(url: str) -> str:
