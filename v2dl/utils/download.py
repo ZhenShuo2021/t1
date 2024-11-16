@@ -4,13 +4,269 @@ import sys
 import time
 import asyncio
 import logging
+from abc import ABC, abstractmethod
 from pathlib import Path
 
 import httpx
+from pathvalidate import sanitize_filename
+from requests import Response
 
 from .parser import LinkParser
 
 logger = logging.getLogger()
+
+
+class DownloadAPI(ABC):
+    """Abstract base class for download APIs."""
+
+    @abstractmethod
+    def download_image(self, task_id: str, url: str, alt: str, destination: Path) -> bool:
+        """Execute a synchronous download task."""
+        pass
+
+    @abstractmethod
+    async def download_image_async(
+        self,
+        task_id: str,
+        url: str,
+        alt: str,
+        destination: Path,
+    ) -> bool:
+        """Execute an asynchronous download task."""
+        pass
+
+    @abstractmethod
+    def download_video(self, task_id: str, url: str, resp: Response, destination: Path) -> bool:
+        """Execute a synchronous video download task."""
+        pass
+
+    @abstractmethod
+    async def download_video_async(
+        self,
+        task_id: str,
+        url: str,
+        resp: Response,
+        destination: Path,
+    ) -> bool:
+        """Execute an asynchronous video download task."""
+        pass
+
+
+class ImageDownloadAPI(DownloadAPI):
+    """Encapsulates download task logic."""
+
+    def __init__(
+        self,
+        headers: dict[str, str],
+        rate_limit: int,
+        no_skip: bool,
+        logger: logging.Logger,
+    ):
+        self.headers = headers
+        self.rate_limit = rate_limit
+        self.no_skip = no_skip
+        self.logger = logger
+
+    def download_image(self, task_id: str, url: str, alt: str, destination: Path) -> bool:
+        """Execute a synchronous download task."""
+        try:
+            album_name = task_id.rsplit("_", 1)[0]
+            extension = PathUtil.get_image_extension(url)
+            file_path = PathUtil.get_file_path(destination, album_name, alt, extension)
+
+            if PathUtil.file_exists(file_path, self.no_skip, self.logger):
+                return True
+
+            Downloader.download(url, file_path, self.headers, self.rate_limit)
+            self.logger.info("Downloaded: '%s'", file_path)
+            return True
+        except Exception as e:
+            self.logger.error("Error in threaded task '%s': %s", task_id, e)
+            return False
+
+    async def download_image_async(
+        self,
+        task_id: str,
+        url: str,
+        alt: str,
+        destination: Path,
+    ) -> bool:
+        """Execute an asynchronous download task."""
+        try:
+            album_name = task_id.rsplit("_", 1)[0]
+            extension = PathUtil.get_image_extension(url)
+            file_path = PathUtil.get_file_path(destination, album_name, alt, extension)
+
+            if PathUtil.file_exists(file_path, self.no_skip, self.logger):
+                return True
+
+            await Downloader.download_async(url, file_path, self.headers, self.rate_limit)
+            self.logger.info("Downloaded: '%s'", file_path)
+            return True
+        except Exception as e:
+            self.logger.error("Error in async task '%s': %s", task_id, e)
+            return False
+
+    def download_video(self, task_id: str, url: str, resp: Response, destination: Path) -> bool:
+        raise NotImplementedError
+
+    async def download_video_async(
+        self,
+        task_id: str,
+        url: str,
+        resp: Response,
+        destination: Path,
+    ) -> bool:
+        raise NotImplementedError
+
+
+class VideoDownloadAPI(DownloadAPI):
+    """Encapsulates video download task logic."""
+
+    def __init__(
+        self,
+        headers: dict[str, str],
+        rate_limit: int,
+        logger: logging.Logger,
+    ):
+        self.headers = headers
+        self.rate_limit = rate_limit
+        self.logger = logger
+
+    def download_image(self, task_id: str, url: str, alt: str, destination: Path) -> bool:
+        raise NotImplementedError
+
+    async def download_image_async(
+        self,
+        task_id: str,
+        url: str,
+        alt: str,
+        destination: Path,
+    ) -> bool:
+        raise NotImplementedError
+
+    def download_video(self, task_id: str, url: str, resp: Response, destination: Path) -> bool:
+        """Execute a synchronous video download task."""
+        # Add video download logic here
+        raise NotImplementedError
+
+    async def download_video_async(
+        self,
+        task_id: str,
+        url: str,
+        resp: Response,
+        destination: Path,
+    ) -> bool:
+        """Execute an asynchronous video download task."""
+        # Add asynchronous video download logic here
+        raise NotImplementedError
+
+
+class Downloader:
+    """Handles file downloading operations."""
+
+    @staticmethod
+    def download(
+        url: str,
+        save_path: Path,
+        headers: dict[str, str] | None,
+        speed_limit_kbps: int,
+    ) -> None:
+        """Download with speed limit."""
+        if headers is None:
+            headers = {}
+        chunk_size = 1024
+        speed_limit_bps = speed_limit_kbps * 1024
+
+        timeout = httpx.Timeout(10.0, read=5.0)
+        with httpx.Client(timeout=timeout) as client:
+            with client.stream("GET", url, headers=headers) as response:
+                response.raise_for_status()
+                with open(save_path, "wb") as file:
+                    start_time = time.time()
+                    downloaded = 0
+                    for chunk in response.iter_bytes(chunk_size=chunk_size):
+                        file.write(chunk)
+                        downloaded += len(chunk)
+                        elapsed_time = time.time() - start_time
+                        expected_time = downloaded / speed_limit_bps
+                        if elapsed_time < expected_time:
+                            time.sleep(expected_time - elapsed_time)
+
+    @staticmethod
+    async def download_async(
+        url: str,
+        save_path: Path,
+        headers: dict[str, str] | None,
+        speed_limit_kbps: int,
+    ) -> None:
+        """Asynchronous download with speed limit."""
+        if headers is None:
+            headers = {}
+        chunk_size = 1024
+        speed_limit_bps = speed_limit_kbps * 1024
+
+        timeout = httpx.Timeout(10.0, read=30.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream("GET", url, headers=headers) as response:
+                response.raise_for_status()
+                with open(save_path, "wb") as file:
+                    start_time = asyncio.get_event_loop().time()
+                    downloaded = 0
+                    async for chunk in response.aiter_bytes(chunk_size=chunk_size):
+                        file.write(chunk)
+                        downloaded += len(chunk)
+                        elapsed_time = asyncio.get_event_loop().time() - start_time
+                        expected_time = downloaded / speed_limit_bps
+                        if elapsed_time < expected_time:
+                            await asyncio.sleep(expected_time - elapsed_time)
+
+
+class PathUtil:
+    """Handles file and directory operations."""
+
+    @staticmethod
+    def ensure_folder_exists(folder_path: Path | str) -> None:
+        """Ensure the folder exists, create it if not."""
+        Path(folder_path).mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def file_exists(file_path: Path | str, no_skip: bool, logger: logging.Logger) -> bool:
+        """Check if the file exists and log the status."""
+        if Path(file_path).exists() and not no_skip:
+            logger.info("File already exists: '%s'", file_path)
+            return True
+        return False
+
+    @staticmethod
+    def get_file_path(
+        destination: Path | str,
+        album_name: str,
+        filename: str,
+        extension: str,
+    ) -> Path:
+        """Construct the file path for saving the downloaded file."""
+        folder = Path(destination) / album_name
+        PathUtil.ensure_folder_exists(folder)
+        sanitized_filename = sanitize_filename(filename)
+        return folder / f"{sanitized_filename}.{extension}"
+
+    @staticmethod
+    def get_image_extension(url: str, default_ext: str = "jpg") -> str:
+        """Get the extension of a URL."""
+        image_extensions = r"(?:[^.]|^)\.(jpg|jpeg|png|gif|bmp|webp|tiff|svg)$"
+        match = re.search(image_extensions, url, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        return default_ext
+
+    @staticmethod
+    def check_input_file(input_path: Path | str) -> None:
+        if input_path and not os.path.isfile(input_path):
+            logging.error("Input file %s does not exist.", input_path)
+            sys.exit(1)
+        else:
+            logging.info("Input file %s exists and is accessible.", input_path)
 
 
 class AlbumTracker:
@@ -33,258 +289,22 @@ class AlbumTracker:
                 f.write(album_url + "\n")
 
 
-def threading_download_job(  # noqa: PLR0913
-    task_id: str,
-    url: str,
-    destination: Path,
-    alt: str,
-    rate_limit: int,
-    headers: dict[str, str],
-    no_skip: bool,
-    logger: logging.Logger,
-) -> bool:
-    try:
-        # obtain album_name from task_id (the format of task_id is "album_name_index")
-        album_name = task_id.rsplit("_", 1)[0]
-        folder = destination / Path(album_name)
-        folder.mkdir(parents=True, exist_ok=True)
-
-        filename = re.sub(r'[<>:"/\\|?*]', "", alt)  # remove invalid characters
-        file_path = folder / f"{filename}.{get_image_extension(url)}"
-
-        if file_path.exists() and not no_skip:
-            logger.info("File already exists: '%s'", file_path)
-            return True
-
-        return download_image(url, file_path, headers, rate_limit, logger)
-
-    except Exception as e:
-        logger.error("Error downloading photo %s: %s", task_id, e)
-        return False
-
-
-def download_album(  # noqa: PLR0913
+def download_album(
     album_name: str,
-    image_links: list[tuple[str, str]],
+    file_links: list[tuple[str, str]],
     destination: str,
     headers: dict[str, str],
     rate_limit: int,
     no_skip: bool,
     logger: logging.Logger,
 ) -> None:
-    """Download images from image links.
-
-    Save images to a folder named after the album, existing files would be skipped.
-
-    Args:
-        album_name (str): Name of album folder.
-        image_links (list[tuple[str, str]]): List of tuples with image URLs and corresponding alt text for filenames.
-        destination (str): Download parent directory of album folder.
-        headers (dict): Download request headers.
-        rate_limit (int): Download rate limits.
-        no_skip (bool): Do not skip downloaded files.
-        logger (logging.Logger): Logger.
-    """
-    folder = destination / Path(album_name)
-    folder.mkdir(parents=True, exist_ok=True)
-
-    for url, alt in image_links:
-        filename = re.sub(r'[<>:"/\\|?*]', "", alt)  # Remove invalid characters
-        file_path = folder / f"{filename}.{get_image_extension(url)}"
-
-        if file_path.exists() and not no_skip:
-            logger.info("File already exists: '%s'", file_path)
-            continue
-
-        # requests module will log download url
-        if download_image(url, file_path, headers, rate_limit, logger):
-            pass
-
-
-def download_image(
-    url: str,
-    save_path: Path,
-    headers: dict[str, str],
-    rate_limit: int,
-    logger: logging.Logger,
-) -> bool:
-    """Error control subfunction for download files.
-
-    Return `True` for successful download, else `False`.
-    """
-    try:
-        download(url, save_path, headers, rate_limit)
-        logger.info("Downloaded: '%s'", save_path)
-        return True
-    except httpx.HTTPStatusError as http_err:
-        logger.error("HTTP error occurred: %s", http_err)
-        return False
-    except Exception as e:
-        logger.error("An error occurred while downloading url '%s': %s", url, e)
-        return False
-
-
-def download(
-    url: str,
-    save_path: Path,
-    headers: dict[str, str] | None,
-    speed_limit_kbps: int = 1536,
-) -> None:
-    """Download with speed limit function.
-
-    Default speed limit is 1536 KBps (1.5 MBps).
-    """
-    if headers is None:
-        headers = {}
-    chunk_size = 1024
-    speed_limit_bps = speed_limit_kbps * 1024  # Convert to bytes per second
-
-    timeout = httpx.Timeout(10.0, read=5.0)
-    with httpx.Client(timeout=timeout) as client:
-        try:
-            with client.stream("GET", url, headers=headers) as response:
-                response.raise_for_status()  # Check if request was successful
-
-                with open(save_path, "wb") as file:
-                    start_time = time.time()
-                    downloaded = 0
-
-                    for chunk in response.iter_bytes(chunk_size=chunk_size):
-                        file.write(chunk)
-                        downloaded += len(chunk)
-
-                        elapsed_time = time.time() - start_time
-                        expected_time = downloaded / speed_limit_bps
-
-                        if elapsed_time < expected_time:
-                            time.sleep(expected_time - elapsed_time)
-        except httpx.TimeoutException:
-            logger.error("The request timed out")
-        except httpx.RequestError as e:
-            logger.error(f"An error occurred: {e}")
-
-
-async def async_download_image_task(  # noqa: PLR0913
-    task_id: str,
-    url: str,
-    destination: Path,
-    alt: str,
-    rate_limit: int,
-    headers: dict[str, str],
-    no_skip: bool,
-    logger: logging.Logger,
-) -> bool:
-    """Error control wrapper function for download_image task.
-
-    Args:
-        task_id: Task identifier in format "album_name_index"
-        url: URL to download from
-        destination: Base directory to save downloaded files
-        alt: Alternative text used as filename
-        rate_limit: Download speed limit in KBps
-        headers: HTTP headers for request
-        no_skip: Flag to force download even if file exists
-        logger: Logger instance for recording events
-
-    Returns:
-        bool: True for successful download or existing file, False for failures
-    """
-    try:
-        # obtain album_name from task_id (the format of task_id is "album_name_index")
-        album_name = task_id.rsplit("_", 1)[0]
-        folder = destination / Path(album_name)
-        folder.mkdir(parents=True, exist_ok=True)
-
-        filename = re.sub(r'[<>:"/\\|?*]', "", alt)  # remove invalid characters
-        file_path = folder / f"{filename}.{get_image_extension(url)}"
-
-        if file_path.exists() and not no_skip:
-            logger.info("File already exists: '%s'", file_path)
-            return True
-
-        return await async_download_image(url, file_path, headers, rate_limit, logger)
-
-    except Exception as e:
-        logger.error("Error downloading photo %s: %s", task_id, e)
-        return False
-
-
-async def async_download_image(
-    url: str,
-    save_path: Path,
-    headers: dict[str, str],
-    rate_limit: int,
-    logger: logging.Logger,
-) -> bool:
-    try:
-        await async_download(url, save_path, headers, rate_limit)
-        logger.info("下載完成: '%s'", save_path)
-        return True
-    except httpx.HTTPStatusError as http_err:
-        logger.error("HTTP 錯誤發生: %s", http_err)
-        return False
-    except Exception as e:
-        logger.error("下載網址 '%s' 時發生錯誤: %s", url, e)
-        return False
-
-
-async def async_download(
-    url: str,
-    save_path: Path,
-    headers: dict[str, str] | None,
-    speed_limit_kbps: int = 1536,
-) -> None:
-    if headers is None:
-        headers = {}
-    chunk_size = 1024
-    speed_limit_bps = speed_limit_kbps * 1024
-
-    timeout = httpx.Timeout(10.0, read=30.0)
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream("GET", url, headers=headers) as response:
-                response.raise_for_status()
-
-                with open(save_path, "wb") as file:
-                    start_time = asyncio.get_event_loop().time()
-                    downloaded = 0
-
-                    async for chunk in response.aiter_bytes(chunk_size=chunk_size):
-                        file.write(chunk)
-                        downloaded += len(chunk)
-
-                        elapsed_time = asyncio.get_event_loop().time() - start_time
-                        expected_time = downloaded / speed_limit_bps
-
-                        if elapsed_time < expected_time:
-                            await asyncio.sleep(expected_time - elapsed_time)
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP request fail with status code: {e.response.status_code}, message: {e}")
-    except httpx.RequestError as e:
-        logger.error(f"Request error: {e}")
-    except Exception as e:
-        logger.error(f"Unknown error: {e}")
-
-
-def get_image_extension(url: str) -> str:
-    """Get the extension of url.
-
-    If there is not an extension, return default value "jpg".
-    """
-    image_extensions = r"(?:[^.]|^)\.(jpg|jpeg|png|gif|bmp|webp|tiff|svg)$"
-
-    match = re.search(image_extensions, url, re.IGNORECASE)
-
-    if match:
-        return match.group(1)
-    else:
-        # 如果沒找到，返回預設值
-        return "jpg"
-
-
-def check_input_file(input_path: str) -> None:
-    if input_path and not os.path.isfile(input_path):
-        logging.error("Input file %s does not exist.", input_path)
-        sys.exit(1)
-    else:
-        logging.info("Input file %s exists and is accessible.", input_path)
+    """Download files from a list of links."""
+    task_manager = ImageDownloadAPI(
+        headers=headers,
+        rate_limit=rate_limit,
+        no_skip=no_skip,
+        logger=logger,
+    )
+    for url, alt in file_links:
+        task_id = f"{album_name}_{alt}"
+        task_manager.download_image(task_id, url, alt, Path(destination))

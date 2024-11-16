@@ -129,20 +129,43 @@ class ThreadingService(TaskService):
 
 
 class AsyncService(TaskService):
-    """Service for processing async tasks."""
-
-    def __init__(self, logger: Logger, max_workers: int = 5):
+    def __init__(self, logger: Logger, maxsize: int = 5) -> None:
+        self.maxsize = maxsize
         self.logger = logger
-        self.max_workers = max_workers
         self.is_running = False
         self.loop: asyncio.AbstractEventLoop | None = None
-        self.worker_thread: threading.Thread | None = None
+        self.thread: threading.Thread | None = None
         self._lock = threading.Lock()
 
         self.task_queue: queue.Queue[Task] = queue.Queue()
-        self.results: dict[str, Any] = {}
+        self.result_queue: queue.Queue[Any] = queue.Queue()
         self.current_tasks: list[asyncio.Task[Any]] = []
-        self.sem = asyncio.Semaphore(self.max_workers)
+        self.sem = asyncio.Semaphore(self.maxsize)
+
+    def start(self) -> None:
+        pass  # does not need
+
+    def add_task(self, task: Task) -> None:
+        self.task_queue.put(task)
+        self._check_thread()
+
+    def add_tasks(self, tasks: list[Task]) -> None:
+        for task in tasks:
+            self.task_queue.put(task)
+        self._check_thread()
+
+    def get_result(self, task_id: str) -> Any | None:
+        raise NotImplementedError
+
+    def get_results(self, max_item_retrieve: int = 3) -> list[Any]:
+        items: list[Any] = []
+        retrieve_all = max_item_retrieve == 0
+        while retrieve_all or len(items) < max_item_retrieve:
+            try:
+                items.append(self.result_queue.get_nowait())
+            except queue.Empty:
+                break
+        return items
 
     async def _process_tasks(self) -> None:
         while True:
@@ -151,7 +174,7 @@ class AsyncService(TaskService):
             if self.task_queue.empty() and not self.current_tasks:
                 break
 
-            while not self.task_queue.empty() and len(self.current_tasks) < self.max_workers:
+            while not self.task_queue.empty() and len(self.current_tasks) < self.maxsize:
                 try:
                     task = self.task_queue.get_nowait()
                     task_obj = asyncio.create_task(self._run_task(task))
@@ -164,52 +187,22 @@ class AsyncService(TaskService):
 
     async def _run_task(self, task: Task) -> Any:
         async with self.sem:
-            try:
-                result = await task.func(*task.args, **task.kwargs)  # type: ignore
-                with self._lock:
-                    self.results[task.task_id] = result
-                return result
-            except Exception as e:
-                self.logger.error("Error processing task %s: %s", task.task_id, e)
-                return None
+            result = await task.func(*task.args, **task.kwargs)  # type: ignore
+            self.result_queue.put(result)
+            return result
 
-    def start(self) -> None:
+    def _check_thread(self) -> None:
         with self._lock:
-            if (
-                not self.is_running
-                or self.worker_thread is None
-                or not self.worker_thread.is_alive()
-            ):
+            if not self.is_running or self.thread is None or not self.thread.is_alive():
                 self.is_running = True
-                self.worker_thread = threading.Thread(target=self._start_event_loop)
-                self.worker_thread.start()
-
-    def add_task(self, task: Task) -> None:
-        self.task_queue.put(task)
-        if not self.is_running:
-            self.start()
-
-    def add_tasks(self, tasks: list[Task]) -> None:
-        for task in tasks:
-            self.task_queue.put(task)
-        if not self.is_running:
-            self.start()
-
-    def get_result(self, task_id: str) -> Any | None:
-        with self._lock:
-            return self.results.get(task_id)
-
-    def get_results(self, max_results: int = 0) -> dict[str, Any]:
-        with self._lock:
-            return self.results.copy()
+                self.thread = threading.Thread(target=self._start_event_loop)
+                self.thread.start()
 
     def _start_event_loop(self) -> None:
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         try:
             self.loop.run_until_complete(self._process_tasks())
-        except Exception as e:
-            self.logger.error("Error in event loop: %s", e)
         finally:
             self.loop.close()
             self.loop = None
@@ -217,9 +210,9 @@ class AsyncService(TaskService):
             self.current_tasks.clear()
 
     def stop(self, timeout: int | None = None) -> None:
-        if self.worker_thread is not None:
-            self.worker_thread.join(timeout=timeout)
-            self.worker_thread = None
+        if self.thread is not None:
+            self.thread.join(timeout=timeout)
+            self.thread = None
             self.is_running = False
 
 

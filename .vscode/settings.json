@@ -13,6 +13,7 @@
     "memlimit",
     "Mqny",
     "opslimit",
+    "pathvalidate",
     "Psono",
     "pwhash",
     "pyautogui",

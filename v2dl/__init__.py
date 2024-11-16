@@ -21,15 +21,17 @@ from .common import (
     SecurityError,
     setup_logging,
 )
+from .common.const import HEADERS
 from .core import ScrapeHandler, ScrapeManager
 from .utils import (
     AccountManager,
     AsyncService,
     Encryptor,
+    ImageDownloadAPI,
     KeyManager,
+    PathUtil,
     ServiceType,
     TaskServiceFactory,
-    check_input_file,
 )
 from .version import __version__
 from .web_bot import get_bot
@@ -47,24 +49,24 @@ __all__ = [
     "FileProcessingError",
     "ScrapeError",
     "SecurityError",
+    "ImageDownloadAPI",
+    "HEADERS",
 ]
 
 
 def main() -> int:
     args, log_level = parse_arguments()
+    app_config = ConfigManager(DEFAULT_CONFIG).load()
 
     if args.version:
         print(f"{__version__}")  # noqa: T201
         sys.exit(0)
 
-    app_config = ConfigManager(DEFAULT_CONFIG).load()
-
     if args.input_file:
-        check_input_file(args.input_file)
+        PathUtil.check_input_file(args.input_file)
 
     if args.account:
         cli(app_config.encryption)
-
     setup_logging(log_level, log_path=app_config.paths.system_log)
     logger = logging.getLogger(__name__)
     download_service = TaskServiceFactory.create(ServiceType.ASYNC, logger, max_workers=3)

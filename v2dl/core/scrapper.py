@@ -5,12 +5,10 @@ from typing import Any, ClassVar, Generic, Literal, TypeAlias, TypeVar, overload
 
 from lxml import html
 
-from ..utils.download import threading_download_job
-
 from ..common.config import Config, RuntimeConfig
 from ..common.const import BASE_URL, HEADERS
 from ..common.error import ScrapeError
-from ..utils import AlbumTracker, LinkParser, Task, TaskService, async_download_image_task
+from ..utils import AlbumTracker, ImageDownloadAPI, LinkParser, Task
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str
@@ -30,7 +28,6 @@ class ScrapeManager:
         self.dry_run = runtime_config.dry_run
         self.logger = runtime_config.logger
 
-        # 初始化
         self.download_service = runtime_config.download_service
 
     def start_scraping(self) -> None:
@@ -44,7 +41,7 @@ class ScrapeManager:
         except ScrapeError as e:
             self.logger.exception("Scraping error: '%s'", e)
         finally:
-            self.download_service.stop()
+            self.download_service.stop()  # DO NOT REMOVE
             self.web_bot.close_driver()
 
     def _load_urls(self) -> list[str]:
@@ -73,9 +70,25 @@ class ScrapeHandler:
         self.web_bot = web_bot
         self.logger = runtime_config.logger
         self.runtime_config = runtime_config
+        self.download_function = ImageDownloadAPI(
+            HEADERS,
+            base_config.download.rate_limit,
+            runtime_config.no_skip,
+            runtime_config.logger,
+        )
         self.strategies: dict[ScrapeType, BaseScraper[Any]] = {
-            "album_list": AlbumScraper(runtime_config, base_config, web_bot),
-            "album_image": ImageScraper(runtime_config, base_config, web_bot),
+            "album_list": AlbumScraper(
+                runtime_config,
+                base_config,
+                web_bot,
+                self.download_function,
+            ),
+            "album_image": ImageScraper(
+                runtime_config,
+                base_config,
+                web_bot,
+                self.download_function,
+            ),
         }
 
         self.album_tracker = AlbumTracker(base_config.paths.download_log)
@@ -209,7 +222,13 @@ class ScrapeHandler:
 class BaseScraper(Generic[LinkType], ABC):
     """Abstract base class for different scraping strategies."""
 
-    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot: Any) -> None:
+    def __init__(
+        self,
+        runtime_config: RuntimeConfig,
+        base_config: Config,
+        web_bot: Any,
+        download_function: Any,
+    ) -> None:
         self.runtime_config = runtime_config
         self.config = base_config
         self.web_bot = web_bot
@@ -258,9 +277,16 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
     XPATH_ALBUM = '//div[@class="album-photo my-2"]/img/@data-src'
     XPATH_ALTS = '//div[@class="album-photo my-2"]/img/@alt'
 
-    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot: Any) -> None:
-        super().__init__(runtime_config, base_config, web_bot)
+    def __init__(
+        self,
+        runtime_config: RuntimeConfig,
+        base_config: Config,
+        web_bot: Any,
+        download_function: Any,
+    ) -> None:
+        super().__init__(runtime_config, base_config, web_bot, download_function)
         self.dry_run = runtime_config.dry_run
+        self.download_function = download_function
         self.alt_counter = 0
 
     def get_xpath(self) -> str:
@@ -292,16 +318,12 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
             for i, (url, alt) in enumerate(zip(page_links, alts, strict=False)):
                 task = Task(
                     task_id=f"image_{url[15:25]}",
-                    func=threading_download_job,
-                    args=(f"{album_name}_{i}",),
+                    func=self.download_function.download_image_async,
                     kwargs={
+                        "task_id": f"{album_name}_{i}",
                         "url": url,
                         "alt": alt,
                         "destination": self.config.download.download_dir,
-                        "headers": HEADERS,
-                        "rate_limit": self.config.download.rate_limit,
-                        "no_skip": self.runtime_config.no_skip,
-                        "logger": self.logger,
                     },
                 )
                 self.download_service.add_task(task)
