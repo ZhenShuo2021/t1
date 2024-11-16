@@ -10,7 +10,7 @@ from ..utils.download import threading_download_job
 from ..common.config import Config, RuntimeConfig
 from ..common.const import BASE_URL, HEADERS
 from ..common.error import ScrapeError
-from ..utils import AlbumTracker, AsyncService, LinkParser, Task, async_download_image_task
+from ..utils import AlbumTracker, LinkParser, Task, TaskService, async_download_image_task
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str

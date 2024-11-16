@@ -27,7 +27,8 @@ from .utils import (
     AsyncService,
     Encryptor,
     KeyManager,
-    ThreadingService,
+    ServiceType,
+    TaskServiceFactory,
     check_input_file,
 )
 from .version import __version__
@@ -66,7 +67,7 @@ def main() -> int:
 
     setup_logging(log_level, log_path=app_config.paths.system_log)
     logger = logging.getLogger(__name__)
-    download_service = ThreadingService(logger, 3)
+    download_service = TaskServiceFactory.create(ServiceType.ASYNC, logger, max_workers=3)
 
     runtime_config = RuntimeConfig(
         url=args.url,

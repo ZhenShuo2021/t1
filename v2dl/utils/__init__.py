@@ -7,7 +7,14 @@ from .download import (
 )
 from .parser import LinkParser
 from .security import AccountManager, Encryptor, KeyManager, SecureFileHandler
-from .threading import AsyncService, Task, ThreadingService
+from .threading import (
+    AsyncService,
+    ServiceType,
+    Task,
+    TaskService,
+    TaskServiceFactory,
+    ThreadingService,
+)
 
 # only import __all__ when using from automation import *
 __all__ = [
@@ -21,6 +28,9 @@ __all__ = [
     "KeyManager",
     "SecureFileHandler",
     "AsyncService",
+    "ServiceType",
     "Task",
+    "TaskService",
+    "TaskServiceFactory",
     "ThreadingService",
 ]

@@ -8,10 +8,11 @@ import pytest
 
 from v2dl import (
     DEFAULT_CONFIG,
-    AsyncService,
     ConfigManager,
     RuntimeConfig,
     ScrapeManager,
+    ServiceType,
+    TaskServiceFactory,
     get_bot,
     setup_logging,
 )
@@ -40,7 +41,7 @@ def setup_test_env(tmp_path, request):
     config.download.min_scroll_step = config.download.min_scroll_length * 4
     config.download.max_scroll_step = config.download.min_scroll_length * 4 + 1
 
-    download_service: AsyncService = AsyncService(logger)
+    download_service = TaskServiceFactory.create(ServiceType.ASYNC, logger, max_workers=3)
 
     runtime_config = RuntimeConfig(
         url=test_url,
