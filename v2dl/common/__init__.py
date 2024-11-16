@@ -1,7 +1,7 @@
 # v2dl/common/__init__.py
 from .config import Config, ConfigManager, EncryptionConfig, RuntimeConfig
 from .const import DEFAULT_CONFIG, SELENIUM_AGENT
-from .error import DownloadError, FileProcessingError, ScrapeError
+from .error import DownloadError, FileProcessingError, ScrapeError, SecurityError
 from .logger import setup_logging
 
 __all__ = [
@@ -14,5 +14,6 @@ __all__ = [
     "DownloadError",
     "FileProcessingError",
     "ScrapeError",
+    "SecurityError",
     "setup_logging",
 ]

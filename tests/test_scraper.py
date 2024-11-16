@@ -6,10 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from v2dl import ConfigManager, RuntimeConfig, ScrapeManager, setup_logging
-from v2dl.common.const import DEFAULT_CONFIG
-from v2dl.utils import AsyncTaskManager
-from v2dl.web_bot import get_bot
+from v2dl import (
+    DEFAULT_CONFIG,
+    AsyncService,
+    ConfigManager,
+    RuntimeConfig,
+    ScrapeManager,
+    get_bot,
+    setup_logging,
+)
 
 os.environ["V2PH_USERNAME"] = "naf02905@inohm.com"  # temp account for testing
 os.environ["V2PH_PASSWORD"] = "VFc8v/Mqny"  # temp account for testing
@@ -35,7 +40,7 @@ def setup_test_env(tmp_path, request):
     config.download.min_scroll_step = config.download.min_scroll_length * 4
     config.download.max_scroll_step = config.download.min_scroll_length * 4 + 1
 
-    download_service: AsyncTaskManager = AsyncTaskManager(logger)
+    download_service: AsyncService = AsyncService(logger)
 
     runtime_config = RuntimeConfig(
         url=test_url,

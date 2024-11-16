@@ -8,9 +8,7 @@ from datetime import datetime, timedelta
 import pytest
 from nacl.public import PrivateKey
 
-from v2dl.common.config import EncryptionConfig
-from v2dl.common.error import SecurityError
-from v2dl.utils import AccountManager, Encryptor, KeyManager
+from v2dl import AccountManager, EncryptionConfig, Encryptor, KeyManager, SecurityError
 
 
 @pytest.fixture

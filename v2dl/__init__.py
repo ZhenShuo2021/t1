@@ -14,29 +14,38 @@ from .common import (
     Config,
     ConfigManager,
     DownloadError,
+    EncryptionConfig,
     FileProcessingError,
     RuntimeConfig,
     ScrapeError,
+    SecurityError,
     setup_logging,
 )
 from .core import ScrapeHandler, ScrapeManager
-from .utils import AsyncTaskManager, ThreadingService, check_input_file
+from .utils import (
+    AccountManager,
+    AsyncService,
+    Encryptor,
+    KeyManager,
+    ThreadingService,
+    check_input_file,
+)
 from .version import __version__
 from .web_bot import get_bot
 
 __all__ = [
-    "Config",
-    "RuntimeConfig",
-    "ConfigManager",
-    "setup_logging",
-    "ThreadingService",
-    "ScrapeHandler",
-    "ScrapeManager",
-    "ScrapeError",
-    "FileProcessingError",
-    "DownloadError",
-    "get_bot",
     "__version__",
+    "AccountManager",
+    "AsyncService",
+    "Encryptor",
+    "KeyManager",
+    "ScrapeHandler",
+    "Config",
+    "DownloadError",
+    "EncryptionConfig",
+    "FileProcessingError",
+    "ScrapeError",
+    "SecurityError",
 ]
 
 
@@ -57,7 +66,7 @@ def main() -> int:
 
     setup_logging(log_level, log_path=app_config.paths.system_log)
     logger = logging.getLogger(__name__)
-    download_service: AsyncTaskManager = AsyncTaskManager(logger, 3)
+    download_service = ThreadingService(logger, 3)
 
     runtime_config = RuntimeConfig(
         url=args.url,

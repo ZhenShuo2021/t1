@@ -9,8 +9,8 @@ from typing import Any
 
 
 @dataclass
-class ThreadJob:
-    """Task container."""
+class Task:
+    """Unified task container for both threading and async services."""
 
     task_id: str
     func: Callable[..., Any]
@@ -24,30 +24,33 @@ class ThreadJob:
 class ThreadingService:
     """Service for processing tasks with multiple workers."""
 
-    def __init__(self, logger: Logger, num_workers: int = 1):
-        self.task_queue: Queue[ThreadJob | None] = Queue()
+    def __init__(self, logger: Logger, max_workers: int = 1):
+        self.task_queue: Queue[Task | None] = Queue()
         self.logger = logger
-        self.num_workers = num_workers
-        self.worker_threads: list[threading.Thread] = []
+        self.max_workers = max_workers
+        self.workers: list[threading.Thread] = []
         self.results: dict[str, Any] = {}
         self._lock = threading.Lock()
+        self.is_running = False
 
-    def start_workers(self) -> None:
-        """Start up multiple worker threads to listen for tasks."""
-        for _ in range(self.num_workers):
-            worker = threading.Thread(target=self._task_worker, daemon=True)
-            self.worker_threads.append(worker)
-            worker.start()
+    def start(self) -> None:
+        """Start the service workers."""
+        if not self.is_running:
+            self.is_running = True
+            for _ in range(self.max_workers):
+                worker = threading.Thread(target=self._process_tasks, daemon=True)
+                self.workers.append(worker)
+                worker.start()
 
-    def _task_worker(self) -> None:
+    def _process_tasks(self) -> None:
         """Worker function to process tasks from the queue."""
         while True:
             task = self.task_queue.get()
             if task is None:
-                break  # exit signal received
+                break
 
             try:
-                result: Any = task.func(*task.args, **task.kwargs)  # type: ignore
+                result = task.func(*task.args, **task.kwargs)  # type: ignore
                 with self._lock:
                     self.results[task.task_id] = result
             except Exception as e:
@@ -55,63 +58,72 @@ class ThreadingService:
             finally:
                 self.task_queue.task_done()
 
-    def add_task(self, task: ThreadJob) -> None:
-        """Add task to queue with specific parameters and job."""
+    def add_task(self, task: Task) -> None:
+        """Add single task to queue."""
         self.task_queue.put(task)
+        if not self.is_running:
+            self.start()
+
+    def add_tasks(self, tasks: list[Task]) -> None:
+        """Add multiple tasks to queue."""
+        for task in tasks:
+            self.task_queue.put(task)
+        if not self.is_running:
+            self.start()
 
     def get_result(self, task_id: str) -> Any | None:
-        """Get the result of a specific task."""
+        """Get result for specific task ID."""
         with self._lock:
             return self.results.get(task_id)
 
-    def wait_completion(self) -> None:
-        """Block until all tasks are done and stop all workers."""
+    def get_results(self, max_results: int = 0) -> dict[str, Any]:
+        """Get all available results."""
+        with self._lock:
+            return self.results.copy()
+
+    def stop(self, timeout: int | None = None) -> None:
+        """Stop the service and wait for completion."""
         self.task_queue.join()
 
-        # Signal all workers to exit
-        for _ in range(self.num_workers):
+        # Signal workers to stop
+        for _ in range(self.max_workers):
             self.task_queue.put(None)
 
-        # Wait for all worker threads to finish
-        for worker in self.worker_threads:
-            worker.join()
+        # Wait for workers to finish
+        for worker in self.workers:
+            worker.join(timeout=timeout)
+
+        self.workers.clear()
+        self.is_running = False
 
 
-@dataclass
-class AsyncTask:
-    func: Callable[..., Any]
-    args: tuple[Any, ...] = ()
-    kwargs: dict[str, Any] | None = None
+class AsyncService:
+    """Service for processing async tasks."""
 
-    def __post_init__(self) -> None:
-        self.kwargs = self.kwargs or {}
-
-
-class AsyncTaskManager:
-    def __init__(self, logger: Logger, maxsize: int = 5):
+    def __init__(self, logger: Logger, max_workers: int = 5):
         self.logger = logger
-        self.maxsize = maxsize
+        self.max_workers = max_workers
         self.is_running = False
         self.loop: asyncio.AbstractEventLoop | None = None
-        self.thread: threading.Thread | None = None
+        self.worker_thread: threading.Thread | None = None
         self._lock = threading.Lock()
 
-        self.task_queue: queue.Queue[AsyncTask] = queue.Queue()
-        self.result_queue: queue.Queue[Any] = queue.Queue()
+        self.task_queue: queue.Queue[Task] = queue.Queue()
+        self.results: dict[str, Any] = {}
         self.current_tasks: list[asyncio.Task[Any]] = []
-        self.sem = asyncio.Semaphore(self.maxsize)
+        self.sem = asyncio.Semaphore(self.max_workers)
 
-    async def _consume_task(self) -> None:
+    async def _process_tasks(self) -> None:
         while True:
             self.current_tasks = [task for task in self.current_tasks if not task.done()]
 
             if self.task_queue.empty() and not self.current_tasks:
                 break
 
-            while not self.task_queue.empty() and len(self.current_tasks) < self.maxsize:
+            while not self.task_queue.empty() and len(self.current_tasks) < self.max_workers:
                 try:
                     task = self.task_queue.get_nowait()
-                    task_obj = asyncio.create_task(self.run_task(task))
+                    task_obj = asyncio.create_task(self._run_task(task))
                     self.current_tasks.append(task_obj)
                 except queue.Empty:
                     break
@@ -119,52 +131,68 @@ class AsyncTaskManager:
             if self.current_tasks:
                 await asyncio.wait(self.current_tasks, return_when=asyncio.FIRST_COMPLETED)
 
-    async def run_task(self, task: AsyncTask) -> Any:
+    async def _run_task(self, task: Task) -> Any:
         async with self.sem:
-            result = await task.func(*task.args, **task.kwargs)  # type: ignore
-            self.result_queue.put(result)
-            return result
+            try:
+                result = await task.func(*task.args, **task.kwargs)  # type: ignore
+                with self._lock:
+                    self.results[task.task_id] = result
+                return result
+            except Exception as e:
+                self.logger.error("Error processing task %s: %s", task.task_id, e)
+                return None
 
-    def produce_task(self, task: AsyncTask) -> None:
+    def start(self) -> None:
+        """Start the service if not already running."""
+        with self._lock:
+            if (
+                not self.is_running
+                or self.worker_thread is None
+                or not self.worker_thread.is_alive()
+            ):
+                self.is_running = True
+                self.worker_thread = threading.Thread(target=self._start_event_loop)
+                self.worker_thread.start()
+
+    def add_task(self, task: Task) -> None:
+        """Add single task to queue."""
         self.task_queue.put(task)
-        self._check_thread()
+        if not self.is_running:
+            self.start()
 
-    def produce_task_list(self, tasks: list[AsyncTask]) -> None:
+    def add_tasks(self, tasks: list[Task]) -> None:
+        """Add multiple tasks to queue."""
         for task in tasks:
             self.task_queue.put(task)
-        self._check_thread()
+        if not self.is_running:
+            self.start()
 
-    def get_result(self, max_item_retrieve: int = 3) -> list[Any]:
-        items: list[Any] = []
-        retrieve_all = max_item_retrieve == 0
-        while retrieve_all or len(items) < max_item_retrieve:
-            try:
-                items.append(self.result_queue.get_nowait())
-            except queue.Empty:
-                break
-        return items
-
-    def _check_thread(self) -> None:
+    def get_result(self, task_id: str) -> Any | None:
+        """Get result for specific task ID."""
         with self._lock:
-            if not self.is_running or self.thread is None or not self.thread.is_alive():
-                self.is_running = True
-                self.thread = threading.Thread(target=self._start_event_loop)
-                self.thread.start()
+            return self.results.get(task_id)
+
+    def get_results(self, max_results: int = 0) -> dict[str, Any]:
+        """Get all available results."""
+        with self._lock:
+            return self.results.copy()
 
     def _start_event_loop(self) -> None:
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         try:
-            self.loop.run_until_complete(self._consume_task())
+            self.loop.run_until_complete(self._process_tasks())
         except Exception as e:
-            self.logger.error("Error processing task: %s", e)
+            self.logger.error("Error in event loop: %s", e)
         finally:
             self.loop.close()
             self.loop = None
             self.is_running = False
             self.current_tasks.clear()
 
-    def wait_completion(self, timeout: int | None = None) -> None:
-        if self.thread is not None:
-            self.thread.join(timeout=timeout)
-            self.thread = None
+    def stop(self, timeout: int | None = None) -> None:
+        """Stop the service and wait for completion."""
+        if self.worker_thread is not None:
+            self.worker_thread.join(timeout=timeout)
+            self.worker_thread = None
+            self.is_running = False

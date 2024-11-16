@@ -7,21 +7,20 @@ from .download import (
 )
 from .parser import LinkParser
 from .security import AccountManager, Encryptor, KeyManager, SecureFileHandler
-from .threading import AsyncTask, AsyncTaskManager, ThreadingService, ThreadJob
+from .threading import AsyncService, Task, ThreadingService
 
 # only import __all__ when using from automation import *
 __all__ = [
+    "AlbumTracker",
+    "async_download_image_task",
+    "check_input_file",
+    "threading_download_job",
+    "LinkParser",
     "AccountManager",
     "Encryptor",
-    "AsyncTask",
-    "AsyncTaskManager",
-    "check_input_file",
-    "async_download_image_task",
-    "threading_download_job",
     "KeyManager",
     "SecureFileHandler",
-    "AlbumTracker",
-    "LinkParser",
-    "ThreadJob",
+    "AsyncService",
+    "Task",
     "ThreadingService",
 ]

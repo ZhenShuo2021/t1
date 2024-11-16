@@ -5,10 +5,12 @@ from typing import Any, ClassVar, Generic, Literal, TypeAlias, TypeVar, overload
 
 from lxml import html
 
+from ..utils.download import threading_download_job
+
 from ..common.config import Config, RuntimeConfig
 from ..common.const import BASE_URL, HEADERS
 from ..common.error import ScrapeError
-from ..utils import AlbumTracker, AsyncTask, LinkParser, async_download_image_task
+from ..utils import AlbumTracker, AsyncService, LinkParser, Task, async_download_image_task
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str
@@ -44,7 +46,7 @@ class ScrapeManager:
         except ScrapeError as e:
             self.logger.exception("Scraping error: '%s'", e)
         finally:
-            self.download_service.wait_completion()
+            self.download_service.stop()
             self.web_bot.close_driver()
 
     def _load_urls(self) -> list[str]:
@@ -290,8 +292,9 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
 
             # assign download job for each image
             for i, (url, alt) in enumerate(zip(page_links, alts, strict=False)):
-                task = AsyncTask(
-                    func=async_download_image_task,
+                task = Task(
+                    task_id=f"image_{url[15:25]}",
+                    func=threading_download_job,
                     args=(f"{album_name}_{i}",),
                     kwargs={
                         "url": url,
@@ -303,7 +306,7 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
                         "logger": self.logger,
                     },
                 )
-                self.download_service.produce_task(task)
+                self.download_service.add_task(task)
 
         self.logger.info("Found %d images on page %d", len(page_links), page)
 
