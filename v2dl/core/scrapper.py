@@ -16,8 +16,6 @@ from ..utils import AlbumTracker, LinkParser, Task, TaskService, async_download_
 AlbumLink: TypeAlias = str
 ImageLinkAndALT: TypeAlias = tuple[str, str]
 LinkType = TypeVar("LinkType", AlbumLink, ImageLinkAndALT)
-
-# Define literal types for scraping types
 ScrapeType = Literal["album_list", "album_image"]
 
 
@@ -288,7 +286,7 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
 
         # Handle downloads if not in dry run mode
         if not self.dry_run:
-            album_name = self._extract_album_name(alts)
+            album_name = extract_album_name(alts)
 
             # assign download job for each image
             for i, (url, alt) in enumerate(zip(page_links, alts, strict=False)):
@@ -310,11 +308,11 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
 
         self.logger.info("Found %d images on page %d", len(page_links), page)
 
-    @staticmethod
-    def _extract_album_name(alts: list[str]) -> str:
-        album_name = next((alt for alt in alts if not alt.isdigit()), None)
-        if album_name:
-            album_name = re.sub(r"\s*\d*$", "", album_name).strip()
-        if not album_name:
-            album_name = BASE_URL.rstrip("/").split("/")[-1]
-        return album_name
+
+def extract_album_name(alts: list[str]) -> str:
+    album_name = next((alt for alt in alts if not alt.isdigit()), None)
+    if album_name:
+        album_name = re.sub(r"\s*\d*$", "", album_name).strip()
+    if not album_name:
+        album_name = BASE_URL.rstrip("/").split("/")[-1]
+    return album_name
