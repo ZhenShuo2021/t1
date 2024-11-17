@@ -16,44 +16,8 @@ from .parser import LinkParser
 logger = logging.getLogger()
 
 
-class DownloadAPI(ABC):
-    """Abstract base class for download APIs."""
-
-    @abstractmethod
-    def download_image(self, task_id: str, url: str, alt: str, destination: Path) -> bool:
-        """Execute a synchronous download task."""
-        pass
-
-    @abstractmethod
-    async def download_image_async(
-        self,
-        task_id: str,
-        url: str,
-        alt: str,
-        destination: Path,
-    ) -> bool:
-        """Execute an asynchronous download task."""
-        pass
-
-    @abstractmethod
-    def download_video(self, task_id: str, url: str, resp: Response, destination: Path) -> bool:
-        """Execute a synchronous video download task."""
-        pass
-
-    @abstractmethod
-    async def download_video_async(
-        self,
-        task_id: str,
-        url: str,
-        resp: Response,
-        destination: Path,
-    ) -> bool:
-        """Execute an asynchronous video download task."""
-        pass
-
-
-class ImageDownloadAPI(DownloadAPI):
-    """Encapsulates download task logic."""
+class BaseDownloadAPI(ABC):
+    """Base protocol for download APIs."""
 
     def __init__(
         self,
@@ -67,12 +31,24 @@ class ImageDownloadAPI(DownloadAPI):
         self.no_skip = no_skip
         self.logger = logger
 
-    def download_image(self, task_id: str, url: str, alt: str, destination: Path) -> bool:
-        """Execute a synchronous download task."""
+    @abstractmethod
+    def download(self, album_name: str, url: str, alt: str, base_folder: Path) -> bool:
+        """Synchronous download method."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def download_async(self, task_id: str, url: str, alt: str, destination: Path) -> bool:
+        """Asynchronous download method."""
+        raise NotImplementedError
+
+
+class ImageDownloadAPI(BaseDownloadAPI):
+    """Image download implementation."""
+
+    def download(self, album_name: str, url: str, alt: str, base_folder: Path) -> bool:
         try:
-            album_name = task_id.rsplit("_", 1)[0]
             extension = PathUtil.get_image_extension(url)
-            file_path = PathUtil.get_file_path(destination, album_name, alt, extension)
+            file_path = PathUtil.get_file_path(base_folder, album_name, alt, extension)
 
             if PathUtil.file_exists(file_path, self.no_skip, self.logger):
                 return True
@@ -81,21 +57,14 @@ class ImageDownloadAPI(DownloadAPI):
             self.logger.info("Downloaded: '%s'", file_path)
             return True
         except Exception as e:
-            self.logger.error("Error in threaded task '%s': %s", task_id, e)
+            self.logger.error("Error in threaded task '%s': %s", url, e)
             return False
 
-    async def download_image_async(
-        self,
-        task_id: str,
-        url: str,
-        alt: str,
-        destination: Path,
-    ) -> bool:
-        """Execute an asynchronous download task."""
+    async def download_async(self, album_name: str, url: str, alt: str, base_folder: Path) -> bool:
         try:
-            album_name = task_id.rsplit("_", 1)[0]
+            album_name = album_name.rsplit("_", 1)[0]
             extension = PathUtil.get_image_extension(url)
-            file_path = PathUtil.get_file_path(destination, album_name, alt, extension)
+            file_path = PathUtil.get_file_path(base_folder, album_name, alt, extension)
 
             if PathUtil.file_exists(file_path, self.no_skip, self.logger):
                 return True
@@ -104,13 +73,17 @@ class ImageDownloadAPI(DownloadAPI):
             self.logger.info("Downloaded: '%s'", file_path)
             return True
         except Exception as e:
-            self.logger.error("Error in async task '%s': %s", task_id, e)
+            self.logger.error("Error in async task '%s': %s", album_name, e)
             return False
 
-    def download_video(self, task_id: str, url: str, resp: Response, destination: Path) -> bool:
+
+class VideoDownloadAPI(BaseDownloadAPI):
+    """Video download implementation."""
+
+    def download(self, task_id: str, url: str, resp: Response, destination: Path) -> bool:
         raise NotImplementedError
 
-    async def download_video_async(
+    async def download_async(
         self,
         task_id: str,
         url: str,
@@ -120,45 +93,13 @@ class ImageDownloadAPI(DownloadAPI):
         raise NotImplementedError
 
 
-class VideoDownloadAPI(DownloadAPI):
-    """Encapsulates video download task logic."""
+class ActorDownloadAPI(BaseDownloadAPI):
+    """Actor-based download implementation."""
 
-    def __init__(
-        self,
-        headers: dict[str, str],
-        rate_limit: int,
-        logger: logging.Logger,
-    ):
-        self.headers = headers
-        self.rate_limit = rate_limit
-        self.logger = logger
-
-    def download_image(self, task_id: str, url: str, alt: str, destination: Path) -> bool:
+    def download(self, album_name: str, url: str, alt: str, base_folder: Path) -> bool:
         raise NotImplementedError
 
-    async def download_image_async(
-        self,
-        task_id: str,
-        url: str,
-        alt: str,
-        destination: Path,
-    ) -> bool:
-        raise NotImplementedError
-
-    def download_video(self, task_id: str, url: str, resp: Response, destination: Path) -> bool:
-        """Execute a synchronous video download task."""
-        # Add video download logic here
-        raise NotImplementedError
-
-    async def download_video_async(
-        self,
-        task_id: str,
-        url: str,
-        resp: Response,
-        destination: Path,
-    ) -> bool:
-        """Execute an asynchronous video download task."""
-        # Add asynchronous video download logic here
+    async def download_async(self, task_id: str, url: str, alt: str, destination: Path) -> bool:
         raise NotImplementedError
 
 
@@ -298,7 +239,7 @@ def download_album(
     no_skip: bool,
     logger: logging.Logger,
 ) -> None:
-    """Download files from a list of links."""
+    """Basic usage example: download files from a list of links."""
     task_manager = ImageDownloadAPI(
         headers=headers,
         rate_limit=rate_limit,
@@ -307,4 +248,4 @@ def download_album(
     )
     for url, alt in file_links:
         task_id = f"{album_name}_{alt}"
-        task_manager.download_image(task_id, url, alt, Path(destination))
+        task_manager.download(task_id, url, alt, Path(destination))

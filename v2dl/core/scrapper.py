@@ -326,10 +326,10 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
                     task_id=task_id,
                     func=self.download_function,
                     kwargs={
-                        "task_id": task_id,
+                        "album_name": task_id,
                         "url": url,
                         "alt": alt,
-                        "destination": self.config.download.download_dir,
+                        "base_folder": self.config.download.download_dir,
                     },
                 )
                 self.download_service.add_task(task)

@@ -52,9 +52,9 @@ def setup_test_env(tmp_path, request):
         )
 
         download_function = (
-            _download_function.download_image_async
+            _download_function.download_async
             if service_type == ServiceType.ASYNC
-            else _download_function.download_image
+            else _download_function.download
         )
 
         runtime_config = RuntimeConfig(

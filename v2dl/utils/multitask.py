@@ -4,7 +4,6 @@ import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
 from logging import Logger
 from queue import Queue
 from typing import Any
@@ -21,13 +20,6 @@ class Task:
 
     def __post_init__(self) -> None:
         self.kwargs = self.kwargs or {}
-
-
-class ServiceType(Enum):
-    """Service type enumeration."""
-
-    THREADING = "threading"
-    ASYNC = "async"
 
 
 class TaskService(ABC):
@@ -227,21 +219,3 @@ class AsyncService(TaskService):
             self.thread.join(timeout=timeout)
             self.thread = None
             self.is_running = False
-
-
-class TaskServiceFactory:
-    """Factory class for creating task services."""
-
-    @staticmethod
-    def create(
-        service_type: ServiceType,
-        logger: Logger,
-        max_workers: int = 5,
-    ) -> TaskService:
-        """Create a new task service instance."""
-        if service_type == ServiceType.THREADING:
-            return ThreadingService(logger, max_workers)
-        elif service_type == ServiceType.ASYNC:
-            return AsyncService(logger, max_workers)
-        else:
-            raise ValueError(f"Unknown service type: {service_type}")

@@ -27,6 +27,7 @@ from .core import ScrapeHandler, ScrapeManager
 from .utils import (
     AccountManager,
     AsyncService,
+    DownloadAPIFactory,
     Encryptor,
     ImageDownloadAPI,
     KeyManager,
@@ -71,20 +72,27 @@ def create_runtime_config(
     log_level: int,
     service_type: ServiceType = ServiceType.THREADING,
 ) -> RuntimeConfig:
-    download_service = TaskServiceFactory.create(service_type, logger, max_workers=3)
+    """Create runtime configuration with integrated download service and function."""
 
-    _download_function = ImageDownloadAPI(
-        HEADERS,
-        config.download.rate_limit,
-        args.no_skip,
-        logger,
+    service_type = ServiceType.THREADING
+    download_service = TaskServiceFactory.create(
+        service_type=service_type,
+        logger=logger,
+        max_workers=3,
+    )
+
+    download_api = DownloadAPIFactory.create(
+        service_type=service_type,
+        headers=HEADERS,
+        rate_limit=config.download.rate_limit,
+        no_skip=args.no_skip,
+        logger=logger,
     )
 
     download_function = (
-        _download_function.download_image_async
-        if service_type == ServiceType.ASYNC
-        else _download_function.download_image
+        download_api.download_async if service_type == ServiceType.ASYNC else download_api.download
     )
+    logger.critical(download_function.__name__)
 
     return RuntimeConfig(
         url=args.url,
