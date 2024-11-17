@@ -20,7 +20,7 @@ from .base import BaseBehavior, BaseBot, BaseScroll
 from ..common import SELENIUM_AGENT
 
 if TYPE_CHECKING:
-    from ..common import Config, RuntimeConfig
+    from ..common import BaseConfig, RuntimeConfig
     from ..utils import AccountManager, KeyManager
 
 DEFAULT_BOT_OPT = [
@@ -40,20 +40,20 @@ class SeleniumBot(BaseBot):
     def __init__(
         self,
         runtime_config: "RuntimeConfig",
-        base_config: "Config",
+        base_config: "BaseConfig",
         key_manager: "KeyManager",
         account_manager: "AccountManager",
     ) -> None:
         super().__init__(runtime_config, base_config, key_manager, account_manager)
         self.init_driver()
-        self.scroller = SelScroll(self.driver, self.config, self.logger)
+        self.scroller = SelScroll(self.driver, self.base_config, self.logger)
         self.cloudflare = SelCloudflareHandler(self.driver, self.logger)
 
     def init_driver(self) -> None:
         self.driver: WebDriver
         options = Options()
 
-        chrome_path = [self.config.chrome.exec_path]
+        chrome_path = [self.base_config.chrome.exec_path]
         # "or" returns the first True element
         subprocess_cmd = chrome_path + (self.runtime_config.chrome_args or DEFAULT_BOT_OPT)
         subprocess_cmd = [*subprocess_cmd, self.runtime_config.user_agent or SELENIUM_AGENT]
@@ -368,8 +368,8 @@ class SelBehavior(BaseBehavior):
 
 
 class SelScroll(BaseScroll):
-    def __init__(self, driver: WebDriver, config: "Config", logger: Logger):
-        super().__init__(config, logger)
+    def __init__(self, driver: WebDriver, base_config: "BaseConfig", logger: Logger):
+        super().__init__(base_config, logger)
         self.driver = driver
 
     def scroll_to_bottom(self) -> None:
@@ -377,8 +377,8 @@ class SelScroll(BaseScroll):
         attempts = 0
         last_position = -123459
         scroll_length = lambda: random.randint(
-            self.config.download.min_scroll_length,
-            self.config.download.max_scroll_length,
+            self.base_config.download.min_scroll_length,
+            self.base_config.download.max_scroll_length,
         )
 
         while attempts < max_attempts:
@@ -403,8 +403,8 @@ class SelScroll(BaseScroll):
 
         scroll_pos_init = self.driver.execute_script("return window.pageYOffset;")
         step_scroll = random.randint(
-            self.config.download.min_scroll_length,
-            self.config.download.max_scroll_length,
+            self.base_config.download.min_scroll_length,
+            self.base_config.download.max_scroll_length,
         )
 
         while scroll_attempts < max_attempts:
@@ -421,8 +421,8 @@ class SelScroll(BaseScroll):
             scroll_pos_init = scroll_pos_end
 
             step_scroll = random.randint(
-                self.config.download.min_scroll_length,
-                self.config.download.max_scroll_length,
+                self.base_config.download.min_scroll_length,
+                self.base_config.download.max_scroll_length,
             )
 
             self.wait_for_content_load()
@@ -457,8 +457,8 @@ class SelScroll(BaseScroll):
 
         if action == "scroll_down":
             scroll_length = random.randint(
-                self.config.download.min_scroll_length,
-                self.config.download.max_scroll_length,
+                self.base_config.download.min_scroll_length,
+                self.base_config.download.max_scroll_length,
             )
             target_position = current_position + scroll_length
             self.logger.debug("Trying to scroll down %d pixels", scroll_length)
@@ -467,8 +467,8 @@ class SelScroll(BaseScroll):
             time.sleep(random.uniform(*BaseBehavior.pause_time))
         elif action == "scroll_up":
             scroll_length = random.randint(
-                self.config.download.min_scroll_length,
-                self.config.download.max_scroll_length,
+                self.base_config.download.min_scroll_length,
+                self.base_config.download.max_scroll_length,
             )
             target_position = max(0, current_position - scroll_length)
             self.logger.debug("Trying to scroll up %d pixels", scroll_length)
@@ -487,8 +487,8 @@ class SelScroll(BaseScroll):
     def safe_scroll(self, target_position: float) -> float:
         current_position = self.get_scroll_position()
         step = random.uniform(
-            self.config.download.min_scroll_step,
-            self.config.download.max_scroll_step,
+            self.base_config.download.min_scroll_step,
+            self.base_config.download.max_scroll_step,
         )
         # step = 50 if target_position > current_position else -50
         # while abs(current_position - target_position) > abs(step):

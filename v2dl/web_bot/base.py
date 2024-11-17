@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from logging import Logger
 from typing import Any
 
-from ..common.config import Config, RuntimeConfig
+from ..common.config import BaseConfig, RuntimeConfig
 from ..utils.security import AccountManager, KeyManager
 
 
@@ -15,12 +15,12 @@ class BaseBot(ABC):
     def __init__(
         self,
         runtime_config: RuntimeConfig,
-        base_config: Config,
+        base_config: BaseConfig,
         key_manager: KeyManager,
         account_manager: AccountManager,
     ):
         self.runtime_config = runtime_config
-        self.config = base_config
+        self.base_config = base_config
         self.close_browser = runtime_config.terminate
         self.logger = runtime_config.logger
 
@@ -40,7 +40,7 @@ class BaseBot(ABC):
         """Close the browser and handle cleanup."""
 
     def prepare_chrome_profile(self) -> str:
-        user_data_dir = self.config.chrome.profile_path
+        user_data_dir = self.base_config.chrome.profile_path
 
         if not os.path.exists(user_data_dir):
             os.makedirs(user_data_dir)
@@ -82,8 +82,8 @@ class BaseBehavior:
 
 
 class BaseScroll:
-    def __init__(self, config: Config, logger: Logger) -> None:
-        self.config = config
+    def __init__(self, base_config: BaseConfig, logger: Logger) -> None:
+        self.base_config = base_config
         self.logger = logger
         self.scroll_position = 0
         self.last_content_height = 0

@@ -11,7 +11,7 @@ from DrissionPage.errors import ElementNotFoundError, WaitTimeoutError
 from .base import BaseBehavior, BaseBot, BaseScroll
 
 if TYPE_CHECKING:
-    from ..common import Config, RuntimeConfig
+    from ..common import BaseConfig, RuntimeConfig
     from ..utils import AccountManager, KeyManager
 
 
@@ -19,12 +19,12 @@ class DrissionBot(BaseBot):
     def __init__(
         self,
         runtime_config: "RuntimeConfig",
-        base_config: "Config",
+        base_config: "BaseConfig",
         key_manager: "KeyManager",
         account_manager: "AccountManager",
     ) -> None:
         super().__init__(runtime_config, base_config, key_manager, account_manager)
-        self.config = base_config
+        self.base_config = base_config
         self.init_driver()
         self.cloudflare = DriCloudflareHandler(self.page, self.logger)
 
@@ -48,7 +48,7 @@ class DrissionBot(BaseBot):
         self.page.set.scroll.smooth(on_off=True)
         self.page.set.scroll.wait_complete(on_off=True)
 
-        self.scroll = DriScroll(self.page, self.config, self.logger)
+        self.scroll = DriScroll(self.page, self.base_config, self.logger)
 
     def close_driver(self) -> None:
         if self.close_browser:
@@ -312,8 +312,8 @@ class DriBehavior(BaseBehavior):
 
 
 class DriScroll(BaseScroll):
-    def __init__(self, page: ChromiumPage, config: "Config", logger: Logger) -> None:
-        super().__init__(config, logger)
+    def __init__(self, page: ChromiumPage, base_config: "BaseConfig", logger: Logger) -> None:
+        super().__init__(base_config, logger)
         self.page = page
         self.page.set.scroll.smooth(on_off=True)
 
@@ -323,8 +323,8 @@ class DriScroll(BaseScroll):
         wait_time = (1, 2)
         last_position = -123459
         scroll_length = lambda: random.randint(
-            self.config.download.min_scroll_length,
-            self.config.download.max_scroll_length,
+            self.base_config.download.min_scroll_length,
+            self.base_config.download.max_scroll_length,
         )
 
         while attempts < max_attempts:
@@ -409,16 +409,16 @@ class DriScroll(BaseScroll):
 
         if action == "scroll_down":
             scroll_length = random.randint(
-                self.config.download.min_scroll_step,
-                self.config.download.max_scroll_step,
+                self.base_config.download.min_scroll_step,
+                self.base_config.download.max_scroll_step,
             )
             self.logger.debug("Trying to scroll down %d", scroll_length)
             self.page.scroll.down(pixel=scroll_length)
             time.sleep(random.uniform(*BaseBehavior.pause_time))
         elif action == "scroll_up":
             scroll_length = random.randint(
-                self.config.download.min_scroll_step,
-                self.config.download.max_scroll_step,
+                self.base_config.download.min_scroll_step,
+                self.base_config.download.max_scroll_step,
             )
             self.logger.debug("Trying to scroll up %d", scroll_length)
             self.page.scroll.up(pixel=scroll_length)

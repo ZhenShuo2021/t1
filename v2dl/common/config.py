@@ -58,7 +58,7 @@ class ChromeConfig:
 
 
 @dataclass
-class Config:
+class BaseConfig:
     download: DownloadConfig
     paths: PathConfig
     chrome: ChromeConfig
@@ -106,20 +106,20 @@ class PathTool:
         return exec_path
 
 
-class ConfigManager(PathTool):
+class BaseConfigManager(PathTool):
     """Load and process configs based on user platform.
 
     The DEFAULT_CONFIG is a nested dict, after processing, the ConfigManager.load() returns a
     Config dataclass consists of DownloadConfig, PathConfig, ChromeConfig dataclasses.
     """
 
-    def __init__(self, config: dict[str, dict[str, Any]], config_dir: str | None = None):
-        self.config = config
+    def __init__(self, base_config: dict[str, dict[str, Any]], config_dir: str | None = None):
+        self.base_config = base_config
         self.config_dir = config_dir
 
-    def load(self) -> Config:
+    def load(self) -> BaseConfig:
         """Load configuration from files and environment."""
-        system_config_dir = ConfigManager.get_system_config_dir()
+        system_config_dir = BaseConfigManager.get_system_config_dir()
         if self.config_dir is not None:  # overwrite the config_dir
             system_config_dir = Path(self.config_dir)
         system_config_dir.mkdir(parents=True, exist_ok=True)
@@ -136,29 +136,39 @@ class ConfigManager(PathTool):
             with open(custom_config_path) as f:
                 custom_config = yaml.safe_load(f)
                 if custom_config:  # not empty
-                    self.config = ConfigManager._merge_config(self.config, custom_config)
+                    self.base_config = BaseConfigManager._merge_config(
+                        self.base_config,
+                        custom_config,
+                    )
 
         # Check file paths
-        for key, path in self.config["paths"].items():
-            self.config["paths"][key] = ConfigManager.resolve_abs_path(path, system_config_dir)
+        for key, path in self.base_config["paths"].items():
+            self.base_config["paths"][key] = BaseConfigManager.resolve_abs_path(
+                path,
+                system_config_dir,
+            )
 
-        self.config["chrome"]["profile_path"] = ConfigManager.resolve_abs_path(
-            self.config["chrome"]["profile_path"],
+        self.base_config["chrome"]["profile_path"] = BaseConfigManager.resolve_abs_path(
+            self.base_config["chrome"]["profile_path"],
             system_config_dir,
         )
 
         # Check download_dir path
-        download_dir = self.config["download"].get("download_dir", "").strip()
-        self.config["download"]["download_dir"] = ConfigManager.get_download_dir(download_dir)
+        download_dir = self.base_config["download"].get("download_dir", "").strip()
+        self.base_config["download"]["download_dir"] = BaseConfigManager.get_download_dir(
+            download_dir,
+        )
 
-        return Config(
-            download=DownloadConfig(**self.config["download"]),
-            paths=PathConfig(**self.config["paths"]),
+        return BaseConfig(
+            download=DownloadConfig(**self.base_config["download"]),
+            paths=PathConfig(**self.base_config["paths"]),
             chrome=ChromeConfig(
-                exec_path=ConfigManager.get_chrome_exec_path(self.config),
-                profile_path=self.config["chrome"]["profile_path"],
+                exec_path=BaseConfigManager.get_chrome_exec_path(self.base_config),
+                profile_path=self.base_config["chrome"]["profile_path"],
             ),
-            encryption=EncryptionConfig(**self.config.get("encryption", self.config["encryption"])),
+            encryption=EncryptionConfig(
+                **self.base_config.get("encryption", self.base_config["encryption"]),
+            ),
         )
 
     @staticmethod
@@ -166,7 +176,7 @@ class ConfigManager(PathTool):
         """Recursively merge custom config into base config."""
         for key, value in custom.items():
             if isinstance(value, dict) and key in base:
-                ConfigManager._merge_config(base[key], value)
+                BaseConfigManager._merge_config(base[key], value)
             else:
                 base[key] = value
         return base

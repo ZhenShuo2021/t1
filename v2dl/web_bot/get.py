@@ -3,11 +3,11 @@ from typing import Any
 
 from .drission_bot import DrissionBot
 from .selenium_bot import SeleniumBot
-from ..common import Config, RuntimeConfig
+from ..common import BaseConfig, RuntimeConfig
 from ..utils import AccountManager, KeyManager
 
 
-def get_bot(runtime_config: RuntimeConfig, app_config: Config) -> Any:
+def get_bot(runtime_config: RuntimeConfig, app_config: BaseConfig) -> Any:
     bot_classes = {"selenium": SeleniumBot, "drission": DrissionBot}
 
     bot_type = runtime_config.bot_type

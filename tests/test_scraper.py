@@ -7,7 +7,7 @@ import pytest
 from v2dl import (
     DEFAULT_CONFIG,
     HEADERS,
-    ConfigManager,
+    BaseConfigManager,
     ImageDownloadAPI,
     RuntimeConfig,
     ScrapeHandler,
@@ -35,7 +35,7 @@ def setup_test_env(tmp_path, request):
         log_level = logging.ERROR
 
         logger = logging.getLogger("test_logger")
-        base_config = ConfigManager(DEFAULT_CONFIG).load()
+        base_config = BaseConfigManager(DEFAULT_CONFIG).load()
         base_config.paths.download_log = tmp_path / "download.log"
         base_config.download.download_dir = tmp_path / "Downloads"
         base_config.download.rate_limit = 1000

@@ -12,8 +12,8 @@ from argparse import Namespace as NamespaceT
 from .cli import cli, parse_arguments
 from .common import (
     DEFAULT_CONFIG,
-    Config,
-    ConfigManager,
+    BaseConfig,
+    BaseConfigManager,
     DownloadError,
     EncryptionConfig,
     FileProcessingError,
@@ -45,7 +45,7 @@ __all__ = [
     "Encryptor",
     "KeyManager",
     "ScrapeHandler",
-    "Config",
+    "BaseConfig",
     "DownloadError",
     "EncryptionConfig",
     "FileProcessingError",
@@ -56,18 +56,18 @@ __all__ = [
 ]
 
 
-def process_input(args: NamespaceT, config: Config) -> None:
+def process_input(args: NamespaceT, base_config: BaseConfig) -> None:
     if args.input_file:
         PathUtil.check_input_file(args.input_file)
 
     if args.account:
-        cli(config.encryption)
+        cli(base_config.encryption)
     return
 
 
 def create_runtime_config(
     args: NamespaceT,
-    config: Config,
+    base_config: BaseConfig,
     logger: logging.Logger,
     log_level: int,
     service_type: ServiceType = ServiceType.THREADING,
@@ -84,7 +84,7 @@ def create_runtime_config(
     download_api = DownloadAPIFactory.create(
         service_type=service_type,
         headers=HEADERS,
-        rate_limit=config.download.rate_limit,
+        rate_limit=base_config.download.rate_limit,
         no_skip=args.no_skip,
         logger=logger,
     )
@@ -113,7 +113,7 @@ def create_runtime_config(
 
 def main() -> int:
     args, log_level = parse_arguments()
-    app_config = ConfigManager(DEFAULT_CONFIG).load()
+    app_config = BaseConfigManager(DEFAULT_CONFIG).load()
     process_input(args, app_config)
 
     setup_logging(log_level, log_path=app_config.paths.system_log)

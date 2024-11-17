@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Generic, Literal, TypeAlias, TypeVar
 
 from lxml import html
 
-from ..common.config import Config, RuntimeConfig
+from ..common.config import BaseConfig, RuntimeConfig
 from ..common.const import BASE_URL
 from ..common.error import ScrapeError
 from ..utils import AlbumTracker, LinkParser, Task
@@ -20,7 +20,12 @@ ScrapeType = Literal["album_list", "album_image"]
 class ScrapeManager:
     """Manage the starting and ending of the scraper."""
 
-    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot: Any) -> None:
+    def __init__(
+        self,
+        runtime_config: RuntimeConfig,
+        base_config: BaseConfig,
+        web_bot: Any,
+    ) -> None:
         self.runtime_config = runtime_config
         self.base_config = base_config
 
@@ -66,7 +71,12 @@ class ScrapeHandler:
         "country": "album_list",
     }
 
-    def __init__(self, runtime_config: RuntimeConfig, base_config: Config, web_bot: Any) -> None:
+    def __init__(
+        self,
+        runtime_config: RuntimeConfig,
+        base_config: BaseConfig,
+        web_bot: Any,
+    ) -> None:
         self.web_bot = web_bot
         self.logger = runtime_config.logger
         self.runtime_config = runtime_config
@@ -230,12 +240,12 @@ class BaseScraper(Generic[LinkType], ABC):
     def __init__(
         self,
         runtime_config: RuntimeConfig,
-        base_config: Config,
+        base_config: BaseConfig,
         web_bot: Any,
         download_function: Any,
     ) -> None:
         self.runtime_config = runtime_config
-        self.config = base_config
+        self.base_config = base_config
         self.web_bot = web_bot
         self.download_service = runtime_config.download_service
         self.logger = runtime_config.logger
@@ -285,7 +295,7 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
     def __init__(
         self,
         runtime_config: RuntimeConfig,
-        base_config: Config,
+        base_config: BaseConfig,
         web_bot: Any,
         download_function: Any,
     ) -> None:
@@ -329,7 +339,7 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
                         "album_name": task_id,
                         "url": url,
                         "alt": alt,
-                        "base_folder": self.config.download.download_dir,
+                        "base_folder": self.base_config.download.download_dir,
                     },
                 )
                 self.download_service.add_task(task)

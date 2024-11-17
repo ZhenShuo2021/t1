@@ -1,12 +1,12 @@
 # v2dl/common/__init__.py
-from .config import Config, ConfigManager, EncryptionConfig, RuntimeConfig
+from .config import BaseConfig, BaseConfigManager, EncryptionConfig, RuntimeConfig
 from .const import DEFAULT_CONFIG, SELENIUM_AGENT
 from .error import DownloadError, FileProcessingError, ScrapeError, SecurityError
 from .logger import setup_logging
 
 __all__ = [
-    "Config",
-    "ConfigManager",
+    "BaseConfig",
+    "BaseConfigManager",
     "EncryptionConfig",
     "RuntimeConfig",
     "DEFAULT_CONFIG",
