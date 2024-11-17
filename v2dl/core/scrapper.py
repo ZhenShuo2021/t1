@@ -6,9 +6,9 @@ from typing import Any, ClassVar, Generic, Literal, TypeAlias, TypeVar, overload
 from lxml import html
 
 from ..common.config import Config, RuntimeConfig
-from ..common.const import BASE_URL, HEADERS
+from ..common.const import BASE_URL
 from ..common.error import ScrapeError
-from ..utils import AlbumTracker, ImageDownloadAPI, LinkParser, Task
+from ..utils import AlbumTracker, LinkParser, Task
 
 # Manage return types of each scraper here
 AlbumLink: TypeAlias = str
@@ -70,24 +70,19 @@ class ScrapeHandler:
         self.web_bot = web_bot
         self.logger = runtime_config.logger
         self.runtime_config = runtime_config
-        self.download_function = ImageDownloadAPI(
-            HEADERS,
-            base_config.download.rate_limit,
-            runtime_config.no_skip,
-            runtime_config.logger,
-        )
+
         self.strategies: dict[ScrapeType, BaseScraper[Any]] = {
             "album_list": AlbumScraper(
                 runtime_config,
                 base_config,
                 web_bot,
-                self.download_function,
+                runtime_config.download_function,
             ),
             "album_image": ImageScraper(
                 runtime_config,
                 base_config,
                 web_bot,
-                self.download_function,
+                runtime_config.download_function,
             ),
         }
 
@@ -316,11 +311,12 @@ class ImageScraper(BaseScraper[ImageLinkAndALT]):
 
             # assign download job for each image
             for i, (url, alt) in enumerate(zip(page_links, alts, strict=False)):
+                task_id = f"{album_name}_{i}"
                 task = Task(
-                    task_id=f"image_{url[15:25]}",
-                    func=self.download_function.download_image_async,
+                    task_id=task_id,
+                    func=self.download_function,
                     kwargs={
-                        "task_id": f"{album_name}_{i}",
+                        "task_id": task_id,
                         "url": url,
                         "alt": alt,
                         "destination": self.config.download.download_dir,

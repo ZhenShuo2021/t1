@@ -69,7 +69,22 @@ def main() -> int:
         cli(app_config.encryption)
     setup_logging(log_level, log_path=app_config.paths.system_log)
     logger = logging.getLogger(__name__)
-    download_service = TaskServiceFactory.create(ServiceType.ASYNC, logger, max_workers=3)
+
+    service_type = ServiceType.THREADING
+    download_service = TaskServiceFactory.create(service_type, logger, max_workers=3)
+
+    _download_function = ImageDownloadAPI(
+        HEADERS,
+        app_config.download.rate_limit,
+        args.no_skip,
+        logger,
+    )
+
+    download_function = (
+        _download_function.download_image_async
+        if service_type == ServiceType.ASYNC.value
+        else _download_function.download_image
+    )
 
     runtime_config = RuntimeConfig(
         url=args.url,
@@ -80,6 +95,7 @@ def main() -> int:
         use_chrome_default_profile=args.use_default_chrome_profile,
         terminate=args.terminate,
         download_service=download_service,
+        download_function=download_function,
         dry_run=args.dry_run,
         logger=logger,
         log_level=log_level,

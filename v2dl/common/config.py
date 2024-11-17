@@ -18,6 +18,7 @@ class RuntimeConfig:
     user_agent: str | None
     terminate: bool
     download_service: Any
+    download_function: Any
     dry_run: bool
     logger: Logger
     log_level: int

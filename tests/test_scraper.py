@@ -8,7 +8,9 @@ import pytest
 
 from v2dl import (
     DEFAULT_CONFIG,
+    HEADERS,
     ConfigManager,
+    ImageDownloadAPI,
     RuntimeConfig,
     ScrapeManager,
     ServiceType,
@@ -41,7 +43,21 @@ def setup_test_env(tmp_path, request):
     config.download.min_scroll_step = config.download.min_scroll_length * 4
     config.download.max_scroll_step = config.download.min_scroll_length * 4 + 1
 
-    download_service = TaskServiceFactory.create(ServiceType.ASYNC, logger, max_workers=3)
+    service_type = ServiceType.ASYNC
+    download_service = TaskServiceFactory.create(service_type, logger, max_workers=3)
+
+    _download_function = ImageDownloadAPI(
+        HEADERS,
+        config.download.rate_limit,
+        True,
+        logger,
+    )
+
+    download_function = (
+        _download_function.download_image_async
+        if service_type == ServiceType.ASYNC.value
+        else _download_function.download_image
+    )
 
     runtime_config = RuntimeConfig(
         url=test_url,
@@ -51,6 +67,7 @@ def setup_test_env(tmp_path, request):
         user_agent=None,
         terminate=terminate,
         download_service=download_service,
+        download_function=download_function,
         dry_run=dry_run,
         logger=logger,
         log_level=log_level,
