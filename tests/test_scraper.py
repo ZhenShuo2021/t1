@@ -4,18 +4,11 @@ import logging
 
 import pytest
 
-from v2dl import (
-    DEFAULT_CONFIG,
-    HEADERS,
-    BaseConfigManager,
-    ImageDownloadAPI,
-    RuntimeConfig,
-    ScrapeHandler,
-    ServiceType,
-    TaskServiceFactory,
-    get_bot,
-    setup_logging,
-)
+from v2dl.common import BaseConfigManager, RuntimeConfig, setup_logging
+from v2dl.common.const import DEFAULT_CONFIG, HEADERS
+from v2dl.core import ScrapeHandler
+from v2dl.utils import ImageDownloadAPI, ServiceType, TaskServiceFactory
+from v2dl.web_bot import get_bot
 
 os.environ["V2PH_USERNAME"] = "naf02905@inohm.com"  # temp account for testing
 os.environ["V2PH_PASSWORD"] = "VFc8v/Mqny"  # temp account for testing

@@ -10,8 +10,8 @@ from typing import Any
 import questionary
 from nacl.public import PrivateKey, PublicKey
 
-from ..common.config import EncryptionConfig
-from ..utils.security import AccountManager, KeyManager
+from ..common import EncryptionConfig
+from ..utils import AccountManager, KeyManager
 
 
 def display_menu() -> Any:

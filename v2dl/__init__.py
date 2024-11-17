@@ -9,92 +9,52 @@ import sys
 import logging
 from argparse import Namespace as NamespaceT
 
-from .cli import cli, parse_arguments
-from .common import (
-    DEFAULT_CONFIG,
-    BaseConfig,
-    BaseConfigManager,
-    DownloadError,
-    EncryptionConfig,
-    FileProcessingError,
-    RuntimeConfig,
-    ScrapeError,
-    SecurityError,
-    setup_logging,
-)
-from .common.const import HEADERS
-from .core import ScrapeHandler, ScrapeManager
-from .utils import (
-    AccountManager,
-    AsyncService,
-    DownloadAPIFactory,
-    Encryptor,
-    ImageDownloadAPI,
-    KeyManager,
-    PathUtil,
-    ServiceType,
-    TaskServiceFactory,
-)
-from .version import __version__
-from .web_bot import get_bot
+from . import cli, common, core, utils, version, web_bot
 
-__all__ = [
-    "__version__",
-    "AccountManager",
-    "AsyncService",
-    "Encryptor",
-    "KeyManager",
-    "ScrapeHandler",
-    "BaseConfig",
-    "DownloadError",
-    "EncryptionConfig",
-    "FileProcessingError",
-    "ScrapeError",
-    "SecurityError",
-    "ImageDownloadAPI",
-    "HEADERS",
-]
+__all__ = ["cli", "common", "core", "utils", "version", "web_bot", "version"]
 
 
-def process_input(args: NamespaceT, base_config: BaseConfig) -> None:
+def process_input(args: NamespaceT, base_config: common.BaseConfig) -> None:
     if args.input_file:
-        PathUtil.check_input_file(args.input_file)
+        utils.PathUtil.check_input_file(args.input_file)
 
     if args.account:
-        cli(base_config.encryption)
+        cli.cli(base_config.encryption)
     return
 
 
 def create_runtime_config(
     args: NamespaceT,
-    base_config: BaseConfig,
+    base_config: common.BaseConfig,
     logger: logging.Logger,
     log_level: int,
-    service_type: ServiceType = ServiceType.THREADING,
-) -> RuntimeConfig:
+    service_type: utils.ServiceType = utils.ServiceType.THREADING,
+) -> common.RuntimeConfig:
     """Create runtime configuration with integrated download service and function."""
 
-    service_type = ServiceType.THREADING
-    download_service = TaskServiceFactory.create(
+    service_type = utils.ServiceType.THREADING
+    download_service = utils.TaskServiceFactory.create(
         service_type=service_type,
         logger=logger,
         max_workers=3,
     )
 
-    download_api = DownloadAPIFactory.create(
+    download_api = utils.DownloadAPIFactory.create(
         service_type=service_type,
-        headers=HEADERS,
+        headers=common.const.HEADERS,
         rate_limit=base_config.download.rate_limit,
         no_skip=args.no_skip,
         logger=logger,
     )
 
     download_function = (
-        download_api.download_async if service_type == ServiceType.ASYNC else download_api.download
+        download_api.download_async
+        if service_type == utils.ServiceType.ASYNC
+        else download_api.download
     )
     logger.critical(download_function.__name__)
 
-    return RuntimeConfig(
+    return common.RuntimeConfig(
         url=args.url,
         input_file=args.input_file,
         bot_type=args.bot_type,
@@ -112,16 +72,16 @@ def create_runtime_config(
 
 
 def main() -> int:
-    args, log_level = parse_arguments()
-    app_config = BaseConfigManager(DEFAULT_CONFIG).load()
+    args, log_level = cli.parse_arguments()
+    app_config = common.BaseConfigManager(common.DEFAULT_CONFIG).load()
     process_input(args, app_config)
 
-    setup_logging(log_level, log_path=app_config.paths.system_log)
+    common.setup_logging(log_level, log_path=app_config.paths.system_log)
     logger = logging.getLogger(__name__)
     runtime_config = create_runtime_config(args, app_config, logger, args.log_level)
 
-    web_bot = get_bot(runtime_config, app_config)
-    scraper = ScrapeManager(runtime_config, app_config, web_bot)
+    web_bot_ = web_bot.get_bot(runtime_config, app_config)
+    scraper = core.ScrapeManager(runtime_config, app_config, web_bot_)
     scraper.start_scraping()
 
     return 0

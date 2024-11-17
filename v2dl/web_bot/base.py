@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 from logging import Logger
 from typing import Any
 
-from ..common.config import BaseConfig, RuntimeConfig
-from ..utils.security import AccountManager, KeyManager
+from ..common import BaseConfig, RuntimeConfig
+from ..utils import AccountManager, KeyManager
 
 
 class BaseBot(ABC):

@@ -5,9 +5,8 @@ from typing import Any, ClassVar, Generic, Literal, TypeAlias, TypeVar
 
 from lxml import html
 
-from ..common.config import BaseConfig, RuntimeConfig
+from ..common import BaseConfig, RuntimeConfig, ScrapeError
 from ..common.const import BASE_URL
-from ..common.error import ScrapeError
 from ..utils import AlbumTracker, LinkParser, Task
 
 # Manage return types of each scraper here

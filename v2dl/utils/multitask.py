@@ -22,7 +22,7 @@ class Task:
         self.kwargs = self.kwargs or {}
 
 
-class TaskService(ABC):
+class BaseTaskService(ABC):
     """Abstract base class for task processing services."""
 
     @abstractmethod
@@ -56,7 +56,7 @@ class TaskService(ABC):
         pass
 
 
-class ThreadingService(TaskService):
+class ThreadingService(BaseTaskService):
     """Service for processing tasks with multiple workers."""
 
     def __init__(self, logger: Logger, max_workers: int = 5):
@@ -126,7 +126,7 @@ class ThreadingService(TaskService):
         self.is_running = False
 
 
-class AsyncService(TaskService):
+class AsyncService(BaseTaskService):
     def __init__(self, logger: Logger, maxsize: int = 5) -> None:
         self.maxsize = maxsize
         self.logger = logger

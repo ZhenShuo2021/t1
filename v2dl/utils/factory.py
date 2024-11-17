@@ -10,7 +10,7 @@ from .download import (
     ImageDownloadAPI,
     VideoDownloadAPI,
 )
-from .multitask import AsyncService, TaskService, ThreadingService
+from .multitask import AsyncService, BaseTaskService, ThreadingService
 
 
 @dataclass
@@ -49,7 +49,7 @@ class TaskServiceFactory:
         service_type: ServiceType,
         logger: Logger,
         max_workers: int = 5,
-    ) -> TaskService:
+    ) -> BaseTaskService:
         """Create a new task service instance."""
         if service_type == ServiceType.THREADING:
             return ThreadingService(logger, max_workers)
