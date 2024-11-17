@@ -97,7 +97,7 @@ def test_create_account(account_manager: AccountManager):
     password = "test_password"
     public_key = PrivateKey.generate().public_key
 
-    account_manager.create(username, password, public_key)
+    account_manager.create(username, password, "", public_key)
 
     account = account_manager.read(username)
     assert account is not None
@@ -112,7 +112,7 @@ def test_delete_account(account_manager: AccountManager):
     password = "test_password"
     public_key = PrivateKey.generate().public_key
 
-    account_manager.create(username, password, public_key)
+    account_manager.create(username, password, "", public_key)
     account_manager.delete(username)
 
     account = account_manager.read(username)
@@ -125,8 +125,8 @@ def test_edit_account(account_manager: AccountManager):
     new_password = "new_password"
     public_key = PrivateKey.generate().public_key
 
-    account_manager.create(old_username, "old_password", public_key)
-    account_manager.edit(public_key, old_username, new_username, new_password)
+    account_manager.create(old_username, "old_password", "", public_key)
+    account_manager.edit(public_key, old_username, new_username, new_password, None)
 
     account = account_manager.read(new_username)
     assert account is not None
@@ -139,7 +139,7 @@ def test_update_status(account_manager: AccountManager):
     password = "test_password"
     public_key = PrivateKey.generate().public_key
 
-    account_manager.create(username, password, public_key)
+    account_manager.create(username, password, "", public_key)
     account_manager.update_status(username, "exceed_quota", True)
     account_manager.update_status(
         username,
@@ -159,7 +159,7 @@ def test_verify_password(account_manager: AccountManager):
     private_key = PrivateKey.generate()
     public_key = private_key.public_key
 
-    account_manager.create(username, password, public_key)
+    account_manager.create(username, password, "", public_key)
 
     assert account_manager.verify_password(username, password, private_key) is True
     assert account_manager.verify_password(username, "wrong_password", private_key) is False
@@ -170,7 +170,7 @@ def test_check(account_manager: AccountManager):
     password = "test_password"
     public_key = PrivateKey.generate().public_key
 
-    account_manager.create(username, password, public_key)
+    account_manager.create(username, password, "", public_key)
     account_manager.update_status(
         username,
         "exceed_time",

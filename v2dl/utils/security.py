@@ -265,7 +265,7 @@ class AccountManager:
         self.check()
         atexit.register(self._save_yaml)
 
-    def create(self, username: str, password: str, public_key: PublicKey) -> None:
+    def create(self, username: str, password: str, cookies: str, public_key: PublicKey) -> None:
         with self.lock:
             encrypted_password = self.key_manager.encrypt_password(password, public_key)
             self.accounts[username] = {
@@ -273,6 +273,7 @@ class AccountManager:
                 "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
                 "exceed_quota": False,
                 "exceed_time": "Null",
+                "cookies": cookies,
             }
         self.logger.info("Account %s has been created.", username)
         self._save_yaml()
@@ -295,6 +296,7 @@ class AccountManager:
         old_username: str,
         new_username: str | None,
         new_password: str | None,
+        new_cookies: str | None,
     ) -> None:
         with self.lock:
             if old_username in self.accounts:
@@ -305,6 +307,8 @@ class AccountManager:
                     self.accounts[new_username or old_username]["encrypted_password"] = (
                         encrypted_password
                     )
+                if new_cookies:
+                    self.accounts[new_username or old_username]["cookies"] = encrypted_password
                 self.logger.info("Account %s has been updated.", old_username)
             else:
                 self.logger.error("Account not found.")
@@ -331,11 +335,14 @@ class AccountManager:
         encrypted_password = account.get("encrypted_password")
         decrypted_password = self.key_manager.decrypt_password(encrypted_password, private_key)
         if decrypted_password == password:
-            print("Password is correct.")
-            print(decrypted_password)
+            print("*----------------*")
+            print("|Password correct|")
+            print("*----------------*")
             return True
         else:
-            print("Incorrect password.")
+            print("*------------------*")
+            print("|Incorrect password|")
+            print("*------------------*")
             return False
 
     def check(self) -> None:
