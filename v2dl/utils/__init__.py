@@ -1,8 +1,6 @@
 # v2dl/utils/__init__.py
 from .download import AlbumTracker, ImageDownloadAPI, PathUtil
-from .parser import LinkParser
-from .security import AccountManager, Encryptor, KeyManager, SecureFileHandler
-from .threading import (
+from .multitask import (
     AsyncService,
     ServiceType,
     Task,
@@ -10,6 +8,8 @@ from .threading import (
     TaskServiceFactory,
     ThreadingService,
 )
+from .parser import LinkParser
+from .security import AccountManager, Encryptor, KeyManager, SecureFileHandler
 
 # only import __all__ when using from automation import *
 __all__ = [
