@@ -7,6 +7,7 @@ if sys.version_info < (3, 10):
 
 import sys
 import logging
+from argparse import Namespace as NamespaceT
 
 from .cli import cli, parse_arguments
 from .common import (
@@ -54,39 +55,38 @@ __all__ = [
 ]
 
 
-def main() -> int:
-    args, log_level = parse_arguments()
-    app_config = ConfigManager(DEFAULT_CONFIG).load()
-
-    if args.version:
-        print(f"{__version__}")  # noqa: T201
-        sys.exit(0)
-
+def process_input(args: NamespaceT, config: Config) -> None:
     if args.input_file:
         PathUtil.check_input_file(args.input_file)
 
     if args.account:
-        cli(app_config.encryption)
-    setup_logging(log_level, log_path=app_config.paths.system_log)
-    logger = logging.getLogger(__name__)
+        cli(config.encryption)
+    return
 
-    service_type = ServiceType.THREADING
+
+def create_runtime_config(
+    args: NamespaceT,
+    config: Config,
+    logger: logging.Logger,
+    log_level: int,
+    service_type: ServiceType = ServiceType.THREADING,
+) -> RuntimeConfig:
     download_service = TaskServiceFactory.create(service_type, logger, max_workers=3)
 
     _download_function = ImageDownloadAPI(
         HEADERS,
-        app_config.download.rate_limit,
+        config.download.rate_limit,
         args.no_skip,
         logger,
     )
 
     download_function = (
         _download_function.download_image_async
-        if service_type == ServiceType.ASYNC.value
+        if service_type == ServiceType.ASYNC
         else _download_function.download_image
     )
 
-    runtime_config = RuntimeConfig(
+    return RuntimeConfig(
         url=args.url,
         input_file=args.input_file,
         bot_type=args.bot_type,
@@ -101,6 +101,16 @@ def main() -> int:
         log_level=log_level,
         no_skip=args.no_skip,
     )
+
+
+def main() -> int:
+    args, log_level = parse_arguments()
+    app_config = ConfigManager(DEFAULT_CONFIG).load()
+    process_input(args, app_config)
+
+    setup_logging(log_level, log_path=app_config.paths.system_log)
+    logger = logging.getLogger(__name__)
+    runtime_config = create_runtime_config(args, app_config, logger, args.log_level)
 
     web_bot = get_bot(runtime_config, app_config)
     scraper = ScrapeManager(runtime_config, app_config, web_bot)
