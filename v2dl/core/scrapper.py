@@ -1,7 +1,7 @@
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Generic, Literal, TypeAlias, TypeVar, overload
+from typing import Any, ClassVar, Generic, Literal, TypeAlias, TypeVar
 
 from lxml import html
 
@@ -127,23 +127,48 @@ class ScrapeHandler:
         else:
             self.album_tracker.log_downloaded(album_url)
 
-    @overload
-    def _real_scrape(
+    def _scrape_single_page(
         self,
         url: str,
-        start_page: int,
-        scrape_type: Literal["album_list"],
-        **kwargs: dict[Any, Any],
-    ) -> list[AlbumLink]: ...
+        page: int,
+        strategy: "BaseScraper[Any]",
+        scrape_type: ScrapeType,
+    ) -> tuple[list[AlbumLink] | list[ImageLinkAndALT], bool]:
+        """
+        Scrape a single page and return its results along with whether to continue scraping.
 
-    @overload
-    def _real_scrape(
-        self,
-        url: str,
-        start_page: int,
-        scrape_type: Literal["album_image"],
-        **kwargs: dict[Any, Any],
-    ) -> list[ImageLinkAndALT]: ...
+        Returns:
+            tuple: (page_results, should_continue)
+            - page_results: List of scraped links from the current page
+            - should_continue: Boolean indicating whether to continue to next page
+        """
+        full_url = LinkParser.add_page_num(url, page)
+        html_content = self.web_bot.auto_page_scroll(full_url, page_sleep=0)
+        tree = LinkParser.parse_html(html_content, self.logger)
+
+        if tree is None:
+            return [], False
+
+        self.logger.info("Fetching content from %s", full_url)
+        page_links = tree.xpath(strategy.get_xpath())
+
+        if not page_links:
+            self.logger.info(
+                "No more %s found on page %d",
+                "albums" if scrape_type == "album_list" else "images",
+                page,
+            )
+            return [], False
+
+        page_result: list[AlbumLink] | list[ImageLinkAndALT] = []
+        strategy.process_page_links(page_links, page_result, tree, page)
+
+        # Check if we've reached the last page
+        should_continue = page < LinkParser.get_max_page(tree)
+        if not should_continue:
+            self.logger.info("Reach last page, stopping")
+
+        return page_result, should_continue
 
     def _real_scrape(
         self,
@@ -151,7 +176,7 @@ class ScrapeHandler:
         start_page: int,
         scrape_type: ScrapeType,
         **kwargs: dict[Any, Any],
-    ) -> list[AlbumLink] | list[ImageLinkAndALT]:
+    ) -> list[Any]:
         """Scrape pages for links using the appropriate strategy."""
         strategy = self.strategies[scrape_type]
         self.logger.info(
@@ -160,39 +185,24 @@ class ScrapeHandler:
             url,
         )
 
-        page_result: list[AlbumLink] | list[ImageLinkAndALT] = []
+        all_results: list[Any] = []
         page = start_page
 
         while True:
-            full_url = LinkParser.add_page_num(url, page)
-            html_content = self.web_bot.auto_page_scroll(full_url, page_sleep=0)
-            tree = LinkParser.parse_html(html_content, self.logger)
+            page_results, should_continue = self._scrape_single_page(
+                url,
+                page,
+                strategy,
+                scrape_type,
+            )
+            all_results.extend(page_results)
 
-            if tree is None:
-                break
-
-            # log entering a page
-            self.logger.info("Fetching content from %s", full_url)
-            page_links = tree.xpath(strategy.get_xpath())
-
-            # log no images
-            if not page_links:
-                self.logger.info(
-                    "No more %s found on page %d",
-                    "albums" if scrape_type == "album_list" else "images",
-                    page,
-                )
-                break
-
-            strategy.process_page_links(page_links, page_result, tree, page)
-
-            if page >= LinkParser.get_max_page(tree):
-                self.logger.info("Reach last page, stopping")
+            if not should_continue:
                 break
 
             page = self._handle_pagination(page)
 
-        return page_result
+        return all_results
 
     def _handle_pagination(
         self,
