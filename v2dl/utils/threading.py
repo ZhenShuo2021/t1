@@ -112,11 +112,17 @@ class ThreadingService(TaskService):
 
     def get_result(self, task_id: str) -> Any | None:
         with self._lock:
-            return self.results.get(task_id)
+            return self.results.pop(task_id, None)
 
     def get_results(self, max_results: int = 0) -> dict[str, Any]:
         with self._lock:
-            return self.results.copy()
+            if max_results <= 0:
+                results_to_return = self.results.copy()
+                self.results.clear()
+                return results_to_return
+
+            keys = list(self.results.keys())[:max_results]
+            return {key: self.results.pop(key) for key in keys}
 
     def stop(self, timeout: int | None = None) -> None:
         self.task_queue.join()
@@ -138,12 +144,12 @@ class AsyncService(TaskService):
         self._lock = threading.Lock()
 
         self.task_queue: queue.Queue[Task] = queue.Queue()
-        self.result_queue: queue.Queue[Any] = queue.Queue()
+        self.results: dict[str, Any] = {}
         self.current_tasks: list[asyncio.Task[Any]] = []
         self.sem = asyncio.Semaphore(self.maxsize)
 
     def start(self) -> None:
-        pass  # does not need
+        self._check_thread()
 
     def add_task(self, task: Task) -> None:
         self.task_queue.put(task)
@@ -155,17 +161,18 @@ class AsyncService(TaskService):
         self._check_thread()
 
     def get_result(self, task_id: str) -> Any | None:
-        raise NotImplementedError
+        with self._lock:
+            return self.results.pop(task_id, None)
 
-    def get_results(self, max_item_retrieve: int = 3) -> list[Any]:
-        items: list[Any] = []
-        retrieve_all = max_item_retrieve == 0
-        while retrieve_all or len(items) < max_item_retrieve:
-            try:
-                items.append(self.result_queue.get_nowait())
-            except queue.Empty:
-                break
-        return items
+    def get_results(self, max_results: int = 0) -> dict[str, Any]:
+        with self._lock:
+            if max_results <= 0:
+                results_to_return = self.results.copy()
+                self.results.clear()
+                return results_to_return
+
+            keys = list(self.results.keys())[:max_results]
+            return {key: self.results.pop(key) for key in keys}
 
     async def _process_tasks(self) -> None:
         while True:
@@ -187,9 +194,15 @@ class AsyncService(TaskService):
 
     async def _run_task(self, task: Task) -> Any:
         async with self.sem:
-            result = await task.func(*task.args, **task.kwargs)  # type: ignore
-            self.result_queue.put(result)
-            return result
+            try:
+                result = await task.func(*task.args, **task.kwargs)  # type: ignore
+                with self._lock:
+                    self.results[task.task_id] = result
+                return result
+            except Exception as e:
+                self.logger.error(f"Error processing task {task.task_id}: {e}")
+                with self._lock:
+                    self.results[task.task_id] = None
 
     def _check_thread(self) -> None:
         with self._lock:
