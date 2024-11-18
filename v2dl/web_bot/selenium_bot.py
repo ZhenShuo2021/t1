@@ -17,6 +17,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from .base import BaseBehavior, BaseBot, BaseScroll
+from .cookies import load_cookies
 from ..common import SELENIUM_AGENT
 
 if TYPE_CHECKING:
@@ -176,63 +177,99 @@ class SeleniumBot(BaseBot):
         ):
             self.logger.info("Login page detected - Starting login process")
             try:
-                self.email, self.password = self.account_manager.random_pick(self.private_key)
-                email_field = self.driver.find_element(By.ID, "email")
-                password_field = self.driver.find_element(By.ID, "password")
-                BaseBehavior.random_sleep(0.5, 1)
+                for _ in self.account_manager.accounts:
+                    # this will update self.email and cookies_valid
+                    # if no accounts available, `AccountManager.random_pick` will execute sys.exit
+                    if self.cookies_login():
+                        return
 
-                # SelBehavior.human_like_mouse_movement(self.driver, email_field)
-                password_field.send_keys(Keys.SHIFT, Keys.TAB)
-                BaseBehavior.random_sleep(0.5, 1)
-                SelBehavior.human_like_type(email_field, self.email)
-                SelBehavior.random_sleep(0.01, 0.3)
+                    self.email, self.password = self.account_manager.random_pick(self.private_key)
+                    email_field = self.driver.find_element(By.ID, "email")
+                    password_field = self.driver.find_element(By.ID, "password")
+                    BaseBehavior.random_sleep(0.5, 1)
 
-                # SelBehavior.human_like_mouse_movement(self.driver, password_field)
-                # SelBehavior.human_like_click(self.driver, email_field)
-                email_field.send_keys(Keys.TAB)
-                SelBehavior.human_like_type(password_field, self.password)
-                SelBehavior.random_sleep(0.01, 0.5)
+                    # SelBehavior.human_like_mouse_movement(self.driver, email_field)
+                    password_field.send_keys(Keys.SHIFT, Keys.TAB)
+                    BaseBehavior.random_sleep(0.5, 1)
+                    SelBehavior.human_like_type(email_field, self.email)
+                    SelBehavior.random_sleep(0.01, 0.3)
 
-                # try:
-                #     remember_checkbox = self.driver.find_element(By.ID, "remember")
-                #     if not remember_checkbox.is_selected():
-                #         SelBehavior.human_like_click(self.driver, remember_checkbox)
-                # except NoSuchElementException:
-                #     self.logger.warning("Remember me checkbox not found")
+                    # SelBehavior.human_like_mouse_movement(self.driver, password_field)
+                    # SelBehavior.human_like_click(self.driver, email_field)
+                    email_field.send_keys(Keys.TAB)
+                    SelBehavior.human_like_type(password_field, self.password)
+                    SelBehavior.random_sleep(0.01, 0.5)
 
-                try:
-                    self.cloudflare.handle_cloudflare_recaptcha()
-                except Exception as e:
-                    self.logger.exception("Error handling Cloudflare reCAPTCHA: %s", e)
+                    # try:
+                    #     remember_checkbox = self.driver.find_element(By.ID, "remember")
+                    #     if not remember_checkbox.is_selected():
+                    #         SelBehavior.human_like_click(self.driver, remember_checkbox)
+                    # except NoSuchElementException:
+                    #     self.logger.warning("Remember me checkbox not found")
 
-                self.driver.find_element(
-                    By.XPATH,
-                    '//button[@type="submit" and @class="btn btn-primary btn-block"]',
-                ).click()
+                    try:
+                        self.cloudflare.handle_cloudflare_recaptcha()
+                    except Exception as e:
+                        self.logger.exception("Error handling Cloudflare reCAPTCHA: %s", e)
 
-                SelBehavior.random_sleep(3, 5)
+                    self.driver.find_element(
+                        By.XPATH,
+                        '//button[@type="submit" and @class="btn btn-primary btn-block"]',
+                    ).click()
 
-                if not self.driver.find_elements(
-                    By.XPATH,
-                    "//h1[@class='h4 text-secondary mb-4 login-box-msg']",
-                ):
-                    self.logger.info("Login successful")
-                    success = True
-                else:
-                    self.logger.error("Login failed - Checking for error messages")
-                    self.check_login_errors()
+                    SelBehavior.random_sleep(3, 5)
+
+                    if not self.driver.find_elements(
+                        By.XPATH,
+                        "//h1[@class='h4 text-secondary mb-4 login-box-msg']",
+                    ):
+                        self.logger.info("Login successful")
+                        success = True
+                    else:
+                        self.logger.error("Login failed - Checking for error messages")
+                        self.account_manager.update_runtime_state(
+                            self.email,
+                            "password_valid",
+                            False,
+                        )
+                        self.check_login_errors()
 
             except NoSuchElementException as e:
                 self.logger.error("Login form element not found: %s", e)
+                raise  # raise error to break while loop
             except TimeoutException as e:
                 self.logger.error("Timeout waiting for element: %s", e)
+                raise
             except Exception as e:
                 self.logger.error("Unexpected error during login: %s", e)
+                raise
         else:
             success = True
         if not success:
             self.logger.critical("Automated login failed. Please login yourself.")
             sys.exit("Automated login failed.")
+
+    def cookies_login(self) -> bool:
+        self.email, self.password = self.account_manager.random_pick(self.private_key)
+        account = self.account_manager.read(self.email)
+        if account is None:
+            return False
+
+        # import cookies
+        cookies_path = account.get("cookies")
+        if cookies_path:
+            cookies = load_cookies(cookies_path)
+            self.driver.delete_all_cookies()
+            for k, v in cookies.items():
+                self.driver.add_cookie({"name": k, "value": v})
+            self.driver.refresh()
+
+        if not self.driver.find_element('//a[@href="/site/recovery-password"]'):
+            self.logger.info("Account %s login successful with cookies", self.email)
+            return True
+
+        self.account_manager.update_runtime_state(self.email, "cookies_valid", False)
+        return False
 
     def check_login_errors(self) -> None:
         error_messages = self.driver.find_elements(By.CLASS_NAME, "errorMessage")

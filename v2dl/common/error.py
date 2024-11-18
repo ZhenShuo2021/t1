@@ -12,3 +12,7 @@ class DownloadError(ScrapeError):
 
 class SecurityError(Exception):
     """Password encryption/decryption fail."""
+
+
+class BotError(Exception):
+    """Web bot operation error."""

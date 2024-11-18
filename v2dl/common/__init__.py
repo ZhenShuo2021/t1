@@ -9,7 +9,7 @@ from ._types import (
 )
 from .config import BaseConfigManager
 from .const import DEFAULT_CONFIG, SELENIUM_AGENT
-from .error import DownloadError, FileProcessingError, ScrapeError, SecurityError
+from .error import BotError, DownloadError, FileProcessingError, ScrapeError, SecurityError
 from .logger import setup_logging
 
 __all__ = [
@@ -19,6 +19,7 @@ __all__ = [
     "RuntimeConfig",
     "DEFAULT_CONFIG",
     "SELENIUM_AGENT",
+    "BotError",
     "DownloadError",
     "FileProcessingError",
     "ScrapeError",

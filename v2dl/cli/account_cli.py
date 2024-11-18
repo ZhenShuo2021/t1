@@ -43,7 +43,7 @@ class UIStrings:
     prompt_new_username = "Please enter the new username (leave blank to not update): "
     prompt_new_password = "Please enter the new password (leave blank to not update): "
     prompt_new_cookies = "Please enter the new cookies (leave blank to not update): "
-    prompt_password_test = "Enter password: "
+    prompt_password_test = "Enter password (leave blank to not update): "
 
     msg_account_not_found = "Account not found."
     msg_no_accounts = "No accounts available."
@@ -99,7 +99,7 @@ class AccountManagerCLI:
         if username == "":
             return
         password = self.get_pass(self.strings.prompt_password)
-        cookies = self.get_pass(self.strings.prompt_cookies)
+        cookies = input(self.strings.prompt_cookies)
         self.am.create(username, password, cookies, self.public_key)
 
     def read_account(self) -> None:

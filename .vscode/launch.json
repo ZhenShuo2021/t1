@@ -17,8 +17,8 @@
                 "https://www.v2ph.com/album/Weekly-Big-Comic-Spirits-2016-No22-23",
                 // "https://www.v2ph.com/actor/Kasumi-Arimura",
                 // "-v",
-                // "--bot",
-                // "selenium",
+                "--bot",
+                "selenium",
                 "--no-skip",
                 // "--use-default-chrome-profile",
             ]

@@ -9,6 +9,8 @@ from DrissionPage.common import wait_until
 from DrissionPage.errors import ElementNotFoundError, WaitTimeoutError
 
 from .base import BaseBehavior, BaseBot, BaseScroll
+from .cookies import load_cookies
+from ..common.error import BotError
 
 if TYPE_CHECKING:
     from ..common import BaseConfig, RuntimeConfig
@@ -153,42 +155,57 @@ class DrissionBot(BaseBot):
         if self.page("x://h1[@class='h4 text-secondary mb-4 login-box-msg']"):
             self.logger.info("Login page detected - Starting login process")
             try:
-                self.email, self.password = self.account_manager.random_pick(self.private_key)
-                email_field = self.page("#email")
-                password_field = self.page("#password")
+                for _ in self.account_manager.accounts:
+                    # this will update self.email and cookies_valid
+                    # if no accounts available, `AccountManager.random_pick` will execute sys.exit
+                    if self.cookies_login():
+                        return
+                    email_field = self.page("#email")
+                    password_field = self.page("#password")
 
-                # self.handle_cloudflare_recaptcha()
-                email_field.clear(True)
-                password_field.clear(True)
+                    # self.handle_cloudflare_recaptcha()
+                    email_field.clear(True)
+                    password_field.clear(True)
 
-                DriBehavior.human_like_type(email_field, self.email)
-                DriBehavior.random_sleep(0.01, 0.3)
-                DriBehavior.human_like_type(password_field, self.password)
-                DriBehavior.random_sleep(0.01, 0.5)
+                    DriBehavior.human_like_type(email_field, self.email)
+                    DriBehavior.random_sleep(0.01, 0.3)
+                    DriBehavior.human_like_type(password_field, self.password)
+                    DriBehavior.random_sleep(0.01, 0.5)
 
-                # Already checked by default
-                # remember_checkbox = self.page('#remember')
-                # remember_checkbox.click()
+                    # Already checked by default
+                    # remember_checkbox = self.page('#remember')
+                    # remember_checkbox.click()
 
-                login_button = self.page(
-                    'x://button[@type="submit" and @class="btn btn-primary btn-block"]',
-                )
-                login_button.click()
+                    login_button = self.page(
+                        'x://button[@type="submit" and @class="btn btn-primary btn-block"]',
+                    )
+                    login_button.click()
 
-                if not self.page('x://a[@href="/site/recovery-password"]'):
-                    self.logger.info("Account %s login successful", self.email)
-                    success = True
-                else:
-                    self.logger.info("Account %s login failed. Checking error messages", self.email)
-                    self.check_login_errors()
-                    return
+                    if not self.page('x://a[@href="/site/recovery-password"]'):
+                        self.logger.info("Account %s login successful with password", self.email)
+                        success = True
+                    else:
+                        self.logger.info(
+                            "Account %s login failed. Checking error messages",
+                            self.email,
+                        )
+                        self.account_manager.update_runtime_state(
+                            self.email,
+                            "password_valid",
+                            False,
+                        )
+                        self.check_login_errors()
+                        return
 
             except ElementNotFoundError as e:
                 self.logger.error("Login form element not found: %s", e)
+                raise
             except WaitTimeoutError as e:
                 self.logger.error("Timeout waiting for element: %s", e)
+                raise
             except Exception as e:
                 self.logger.error("Unexpected error during login: %s", e)
+                raise
 
         else:
             success = True
@@ -196,6 +213,27 @@ class DrissionBot(BaseBot):
         if not success:
             self.logger.critical("Automated login failed. Please login yourself.")
             sys.exit("Automated login failed.")
+
+    def cookies_login(self) -> bool:
+        self.email, self.password = self.account_manager.random_pick(self.private_key)
+        account = self.account_manager.read(self.email)
+        if account is None:
+            raise BotError("Unexpected error while reading account '%s'", self.email)
+
+        # import cookies
+        cookies_path = account.get("cookies")
+        if cookies_path:
+            cookies = load_cookies(cookies_path)
+            self.page.set.cookies.clear()
+            self.page.set.cookies(cookies)
+            self.page.refresh()
+
+        if not self.page('x://a[@href="/site/recovery-password"]'):
+            self.logger.info("Account %s login successful with cookies", self.email)
+            return True
+
+        self.account_manager.update_runtime_state(self.email, "cookies_valid", False)
+        return False
 
     def check_login_errors(self) -> None:
         error_message = self.page('x://div[@class="errorMessage"]')
@@ -209,7 +247,7 @@ class DrissionBot(BaseBot):
         if self.check_read_limit():
             # click logout
             self.page('x://ul[@class="nav justify-content-end"]//a[@href="/user/logout"]').click()
-            self.account_manager.update_status(self.email, "exceed_quota", True)
+            self.account_manager.update_account(self.email, "exceed_quota", True)
             self.email, self.password = self.account_manager.random_pick(self.private_key)
 
     def check_read_limit(self) -> bool:

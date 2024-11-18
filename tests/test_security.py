@@ -140,8 +140,8 @@ def test_update_status(account_manager: AccountManager):
     public_key = PrivateKey.generate().public_key
 
     account_manager.create(username, password, "", public_key)
-    account_manager.update_status(username, "exceed_quota", True)
-    account_manager.update_status(
+    account_manager.update_account(username, "exceed_quota", True)
+    account_manager.update_account(
         username,
         "exceed_time",
         datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
@@ -171,12 +171,12 @@ def test_check(account_manager: AccountManager):
     public_key = PrivateKey.generate().public_key
 
     account_manager.create(username, password, "", public_key)
-    account_manager.update_status(
+    account_manager.update_account(
         username,
         "exceed_time",
         (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S"),
     )
-    account_manager.update_status(username, "exceed_quota", True)
+    account_manager.update_account(username, "exceed_quota", True)
 
     account_manager.check()
     account = account_manager.read(username)

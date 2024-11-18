@@ -261,7 +261,7 @@ class AccountManager:
         )
         self.key_manager = key_manager
         self.lock = threading.RLock()
-        self.accounts = self._load_yaml()
+        self.accounts, self.runtime_state = self._load_yaml()
         self.check()
         atexit.register(self._save_yaml)
 
@@ -308,12 +308,12 @@ class AccountManager:
                         encrypted_password
                     )
                 if new_cookies:
-                    self.accounts[new_username or old_username]["cookies"] = encrypted_password
+                    self.accounts[new_username or old_username]["cookies"] = new_cookies
                 self.logger.info("Account %s has been updated.", old_username)
             else:
                 self.logger.error("Account not found.")
 
-    def update_status(self, username: str, field: str, new_value: Any) -> None:
+    def update_account(self, username: str, field: str, new_value: Any) -> None:
         with self.lock:
             account = self.accounts.get(username)
             if account:
@@ -322,9 +322,20 @@ class AccountManager:
                     self.logger.info("Updated %s for account %s.", field, username)
                     self._save_yaml()
                 else:
-                    self.logger.error("Field '%s' does not exist in the account.", field)
+                    self.logger.error("Field '%s' does not exist in account '%s'.", field, account)
             else:
                 self.logger.error("Account %s not found.", username)
+
+    def update_runtime_state(self, username: str, field: str, value: Any) -> None:
+        account = self.runtime_state.get(username)
+        if account:
+            if field in account:
+                account[field] = value
+                self.logger.info("Updated %s for account %s.", field, username)
+            else:
+                self.logger.error("Field '%s' does not exist in the account.", field)
+        else:
+            self.logger.error("Account %s not found.", username)
 
     def verify_password(self, username: str, password: str, private_key: PrivateKey) -> bool:
         account = self.accounts.get(username)
@@ -369,6 +380,19 @@ class AccountManager:
             self.logger.error("All accounts have exhausted their reading quota.")
             sys.exit(1)
 
+        # filter invalid account during runtime based on cookies and password
+        eligible_accounts = {
+            k: v
+            for k, v in eligible_accounts.items()
+            # Allow any types of login methods
+            if self.runtime_state[k].get("cookies_valid", True)
+            or self.runtime_state[k].get("password_valid", True)
+        }
+
+        if not eligible_accounts:
+            self.logger.error("No eligible accounts available for login.")
+            sys.exit(1)
+
         username, account = random.choice(list(eligible_accounts.items()))
         enc_pw = account["encrypted_password"]
         dec_pw = self.key_manager.decrypt_password(enc_pw, private_key)
@@ -381,12 +405,24 @@ class AccountManager:
                 yaml.dump(self.accounts, file, default_flow_style=False)
         # self.logger.info("Successfully update accounts information.")
 
-    def _load_yaml(self) -> dict[str, Any]:
+    def _load_yaml(self) -> tuple[dict[str, Any], dict[str, Any]]:
         try:
             with open(self.yaml_path) as file:
-                return yaml.safe_load(file) or {}
+                account = yaml.safe_load(file) or {}
+            runtime_state = self._login_state(account)
+            return account, runtime_state
         except FileNotFoundError:
-            return {}
+            return {}, {}
+
+    def _login_state(self, accounts: dict[str, Any]) -> dict[str, Any]:
+        """Store login status. Use an individual variable for not storing back to file"""
+        return {
+            email: {
+                "cookies_valid": True,
+                "password_valid": True,
+            }
+            for email in accounts  # email is the key of each account
+        }
 
 
 class SecureFileHandler:
