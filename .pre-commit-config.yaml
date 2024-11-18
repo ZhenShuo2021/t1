@@ -44,3 +44,14 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+  - repo: local
+    hooks:
+      - id: poetry-export
+        name: poetry-export
+        entry: bash -c 'poetry export -f requirements.txt --output requirements.txt --without-hashes'
+        language: system
+        pass_filenames: false
+        files: ^(pyproject.toml|poetry.lock)$
+        stages: [commit]
+        always_run: false
