@@ -104,7 +104,7 @@ def test_create_account(account_manager: AccountManager):
     assert "encrypted_password" in account
     assert "created_at" in account
     assert account["exceed_quota"] is False
-    assert account["exceed_time"] == "Null"
+    assert account["exceed_time"] == ""
 
 
 def test_delete_account(account_manager: AccountManager):
@@ -150,7 +150,7 @@ def test_update_status(account_manager: AccountManager):
     account = account_manager.read(username)
     assert account is not None
     assert account["exceed_quota"] is True
-    assert account["exceed_time"] != "Null"
+    assert account["exceed_time"] != ""
 
 
 def test_verify_password(account_manager: AccountManager):
@@ -182,4 +182,4 @@ def test_check(account_manager: AccountManager):
     account = account_manager.read(username)
     assert account is not None
     assert account["exceed_quota"] is False
-    assert account["exceed_time"] == "Null"
+    assert account["exceed_time"] == ""

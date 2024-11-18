@@ -272,7 +272,7 @@ class AccountManager:
                 "encrypted_password": encrypted_password,
                 "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
                 "exceed_quota": False,
-                "exceed_time": "Null",
+                "exceed_time": "",
                 "cookies": cookies,
             }
         self.logger.info("Account %s has been created.", username)
@@ -351,11 +351,11 @@ class AccountManager:
         update = False
 
         for _, account in self.accounts.items():
-            exceed_time = account.get("exceed_time")
-            if exceed_time and exceed_time != "Null":
+            exceed_time = account.get("exceed_time", "")
+            if exceed_time:
                 exceed_time_time = datetime.strptime(exceed_time, "%Y-%m-%dT%H:%M:%S")
                 if now - exceed_time_time > timedelta(hours=24):
-                    account["exceed_time"] = "Null"
+                    account["exceed_time"] = ""
                     account["exceed_quota"] = False
                     update = True
 

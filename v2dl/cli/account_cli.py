@@ -129,7 +129,7 @@ class AccountManagerCLI:
             return
         new_username = input(self.strings.prompt_new_username)
         password = self.get_pass(self.strings.prompt_new_password)
-        cookies = self.get_pass(self.strings.prompt_cookies)
+        cookies = input(self.strings.prompt_cookies)
         self.am.edit(self.public_key, old_username, new_username, password, cookies)
 
     def delete_account(self) -> None:
@@ -176,8 +176,8 @@ class AccountManagerCLI:
                 print(
                     self.strings.LIST_FORMAT.format(
                         username=username,
-                        quota=info["exceed_quota"] or "Null",
-                        time=info["exceed_time"] or "Null",
+                        quota=info["exceed_quota"],
+                        time=info["exceed_time"],
                         created_at=info["created_at"],
                         cookies=info["cookies"],
                     ),

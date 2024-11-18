@@ -52,7 +52,7 @@ def create_runtime_config(
         if service_type == utils.ServiceType.ASYNC
         else download_api.download
     )
-    logger.critical(download_function.__name__)
+    logger.debug("using download function name: %s", download_function.__name__)
 
     return common.RuntimeConfig(
         url=args.url,
