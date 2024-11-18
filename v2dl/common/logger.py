@@ -33,33 +33,49 @@ class CustomFormatter(logging.Formatter):
             return f"[{self.formatTime(record, '%H:%M:%S')}][{levelname}] - {record.getMessage()}"
 
 
-def setup_logging(level: int, log_path: str, no_archive: bool = False) -> None:
-    """level: [logging.LOGLEVEL]
-    args: [bool], no_archive..
+def setup_logging(
+    level: int,
+    log_path: str,
+    logger_name: str | None = None,
+    archive: bool = True,
+) -> logging.Logger:
+    """Configure logging with console and optional file handlers.
+
+    Args:
+        level (int): Logging level (e.g., logging.DEBUG).
+        log_path (str): Path to the log file.
+        archive (bool): If True, enables file logging.
     """
-    # Clear any existing handlers
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
+    logger = logging.getLogger(logger_name)
+
+    # Clear existing handlers
+    logging.root.handlers.clear()
+    logger.handlers.clear()
 
     # Create formatters
     color_formatter = CustomFormatter(use_color=True)
-    plain_formatter = CustomFormatter(use_color=False)
+    if archive:
+        plain_formatter = CustomFormatter(use_color=False)
 
     # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(color_formatter)
-    logging.getLogger().addHandler(console_handler)
+    logging.root.addHandler(console_handler)
 
     # File handler
-    if not no_archive:
+    if archive:
         log_dir = os.path.dirname(log_path)
-        os.makedirs(log_dir, exist_ok=True)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
         file_handler = logging.FileHandler(log_path, encoding="utf-8")
         file_handler.setFormatter(plain_formatter)
-        logging.getLogger().addHandler(file_handler)
+        logging.root.addHandler(file_handler)
 
     # Set log level
-    logging.getLogger().setLevel(level)
+    logging.root.setLevel(level)
+    logger.setLevel(level)
+
+    return logger
 
 
 if __name__ == "__main__":

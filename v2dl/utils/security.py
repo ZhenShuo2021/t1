@@ -377,7 +377,7 @@ class AccountManager:
         eligible_accounts = {k: v for k, v in self.accounts.items() if not v["exceed_quota"]}
 
         if not eligible_accounts:
-            self.logger.error("All accounts have exhausted their reading quota.")
+            self.logger.info("All accounts have exhausted their reading quota. Existing.")
             sys.exit(1)
 
         # filter invalid account during runtime based on cookies and password
@@ -390,7 +390,7 @@ class AccountManager:
         }
 
         if not eligible_accounts:
-            self.logger.error("No eligible accounts available for login.")
+            self.logger.info("No eligible accounts available for login. Existing.")
             sys.exit(1)
 
         username, account = random.choice(list(eligible_accounts.items()))

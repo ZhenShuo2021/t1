@@ -9,7 +9,7 @@ logger = logging.getLogger()
 
 def load_cookies(file_path: str) -> dict[str, str] | dict[str, Any]:
     if not file_path:
-        logger.error("File path is empty.")
+        logger.error("File path not exists.")
         return {}
 
     fp = Path(file_path)

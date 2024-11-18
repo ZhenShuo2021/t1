@@ -13,6 +13,7 @@ import questionary
 
 from ..common import EncryptionConfig
 from ..utils import AccountManager, KeyManager
+from ..version import __package_name__
 
 
 class MenuAction(Enum):
@@ -62,7 +63,7 @@ class AccountManagerCLI:
     action_map: dict[str, Callable[..., Any]] = {}
 
     def __init__(self, encrypt_config: EncryptionConfig):
-        self.logger = logging.getLogger()
+        self.logger = logging.getLogger(__package_name__)
         self.logger.setLevel(logging.INFO)
         self.strings = UIStrings()
         self.km = KeyManager(self.logger, encrypt_config)

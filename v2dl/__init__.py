@@ -20,6 +20,11 @@ def process_input(args: NamespaceT, base_config: common.BaseConfig) -> None:
 
     if args.account:
         cli.cli(base_config.encryption)
+
+    # suppress httpx INFO level log
+    level = logging.DEBUG if args.log_level == logging.DEBUG else logging.WARNING
+    logging.getLogger("httpx").setLevel(level)
+    logging.getLogger("httpcore").setLevel(level)
     return
 
 
@@ -72,12 +77,15 @@ def create_runtime_config(
 
 
 def main() -> int:
-    args, log_level = cli.parse_arguments()
+    args = cli.parse_arguments()
     app_config = common.BaseConfigManager(common.DEFAULT_CONFIG).load()
     process_input(args, app_config)
 
-    common.setup_logging(log_level, log_path=app_config.paths.system_log)
-    logger = logging.getLogger(__name__)
+    logger = common.setup_logging(
+        args.log_level,
+        log_path=app_config.paths.system_log,
+        logger_name=version.__package_name__,
+    )
     runtime_config = create_runtime_config(args, app_config, logger, args.log_level)
 
     web_bot_ = web_bot.get_bot(runtime_config, app_config)

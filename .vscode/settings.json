@@ -7,6 +7,7 @@
     "aiter",
     "automator",
     "Drission",
+    "httpcore",
     "httpx",
     "isort",
     "lxml",

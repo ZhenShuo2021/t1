@@ -5,7 +5,7 @@ import argparse
 from ..version import __version__
 
 
-def parse_arguments() -> tuple[argparse.Namespace, int]:
+def parse_arguments() -> argparse.Namespace:
     formatter = lambda prog: argparse.HelpFormatter(prog, max_help_position=36)
     parser = argparse.ArgumentParser(description="V2PH scraper.", formatter_class=formatter)
 
@@ -84,5 +84,5 @@ def parse_arguments() -> tuple[argparse.Namespace, int]:
         log_level = logging.INFO
 
     args.chrome_args = args.chrome_args.split("//") if args.chrome_args else None
-
-    return args, log_level
+    args.log_level = log_level
+    return args
