@@ -21,6 +21,12 @@ def process_input(args: NamespaceT, base_config: common.BaseConfig) -> None:
     if args.account:
         cli.cli(base_config.encryption)
 
+    # update base_config
+    if args.min_scroll is not None:
+        base_config.download.min_scroll_length = args.min_scroll
+    if args.max_scroll is not None:
+        base_config.download.max_scroll_length = args.max_scroll
+
     # suppress httpx INFO level log
     level = logging.DEBUG if args.log_level == logging.DEBUG else logging.WARNING
     logging.getLogger("httpx").setLevel(level)
@@ -41,7 +47,7 @@ def create_runtime_config(
     download_service = utils.TaskServiceFactory.create(
         service_type=service_type,
         logger=logger,
-        max_workers=3,
+        max_workers=args.concurrency,
     )
 
     download_api = utils.DownloadAPIFactory.create(
