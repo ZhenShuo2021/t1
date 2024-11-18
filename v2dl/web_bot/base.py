@@ -3,9 +3,10 @@ import time
 import random
 from abc import ABC, abstractmethod
 from logging import Logger
+from subprocess import run
 from typing import Any
 
-from ..common import BaseConfig, RuntimeConfig
+from ..common import BaseConfig, RuntimeConfig, const
 from ..utils import AccountManager, KeyManager
 
 
@@ -89,3 +90,46 @@ class BaseScroll:
         self.last_content_height = 0
         self.successive_scroll_count = 0
         self.max_successive_scrolls = random.randint(5, 10)
+
+
+def get_chrome_version_unix(chrome_path: str) -> str:
+    try:
+        result = run([chrome_path, "--version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip().split()[-1]
+    except Exception:
+        pass
+    return const.DEFAULT_VERSION
+
+
+def get_chrome_version() -> str:
+    system = const.USER_OS
+
+    if system == "Windows":
+        import winreg
+
+        try:
+            reg_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path) as key:  # type: ignore
+                chrome_path, _ = winreg.QueryValueEx(key, "")  # type: ignore
+
+            if os.path.exists(chrome_path):
+                chrome_path = chrome_path.replace("\\", "\\\\")
+                file_info = os.popen(  # nosec
+                    f'wmic datafile where name="{chrome_path}" get Version /value',
+                ).read()
+                version = [
+                    line.split("=")[1] for line in file_info.splitlines() if "Version=" in line
+                ]
+                return version[0] if version else const.DEFAULT_VERSION
+        except Exception:
+            pass
+        return const.DEFAULT_VERSION
+
+    if system == "Darwin":  # macOS
+        return get_chrome_version_unix(const.DEFAULT_CONFIG["chrome"]["exec_path"]["Darwin"])
+
+    if system == "Linux":
+        return get_chrome_version_unix(const.DEFAULT_CONFIG["chrome"]["exec_path"]["Linux"])
+
+    return const.DEFAULT_VERSION

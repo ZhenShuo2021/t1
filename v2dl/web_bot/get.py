@@ -27,7 +27,7 @@ def get_bot(runtime_config: RuntimeConfig, app_config: BaseConfig) -> Any:
 
 def init_new_profile(bot: Any) -> None:
     # visit some websites for new chrome profile
-    websites = [
+    websites: list[str] = [
         # "https://www.google.com",
         # "https://www.youtube.com",
         # "https://www.wikipedia.org",

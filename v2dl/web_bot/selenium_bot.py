@@ -16,7 +16,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from .base import BaseBehavior, BaseBot, BaseScroll
+from .base import BaseBehavior, BaseBot, BaseScroll, get_chrome_version
 from .cookies import load_cookies
 from ..common import SELENIUM_AGENT
 
@@ -57,7 +57,10 @@ class SeleniumBot(BaseBot):
         chrome_path = [self.base_config.chrome.exec_path]
         # commands for running subprocess
         subprocess_cmd = chrome_path + (self.runtime_config.chrome_args or DEFAULT_BOT_OPT)
-        subprocess_cmd = [*subprocess_cmd, self.runtime_config.user_agent or SELENIUM_AGENT]
+        subprocess_cmd = [
+            *subprocess_cmd,
+            self.runtime_config.user_agent or SELENIUM_AGENT.format(get_chrome_version()),
+        ]
 
         if not self.runtime_config.use_chrome_default_profile:
             user_data_dir = self.prepare_chrome_profile()
