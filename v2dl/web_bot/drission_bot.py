@@ -140,7 +140,7 @@ class DrissionBot(BaseBot):
             DriBehavior.random_sleep(sleep_time, sleep_time + 5 * random.uniform(1, retry * 5))
 
             if self.cloudflare.handle_simple_block(retry, max_retry):
-                self.logger.critical("Failed to solve Cloudflare turnstile challenge")
+                self.logger.warning("Failed to solve Cloudflare turnstile challenge")
                 continue
 
             self.page.get(url)
@@ -211,7 +211,7 @@ class DrissionBot(BaseBot):
             success = True
 
         if not success:
-            self.logger.critical("Automated login failed. Please login yourself.")
+            self.logger.info("Automated login failed. Please login yourself.")
             sys.exit("Automated login failed.")
 
     def cookies_login(self) -> bool:
@@ -280,13 +280,13 @@ class DriCloudflareHandler:
         return blocked
 
     def handle_hard_block(self) -> bool:
-        """Check, log critical, and return whether blocked or not.
+        """Check whether blocked or not.
 
         This is a cloudflare WAF full page block.
         """
         blocked = False
         if self.is_hard_block():
-            self.logger.critical("Hard block detected by Cloudflare - Unable to proceed")
+            self.logger.warning("Hard block detected by Cloudflare - Unable to proceed")
             blocked = True
         return blocked
 
@@ -298,7 +298,7 @@ class DriCloudflareHandler:
     def is_hard_block(self) -> bool:
         is_blocked = "Attention Required! | Cloudflare" in self.page.title
         if is_blocked:
-            self.logger.critical("Cloudflare hard block detected")
+            self.logger.warning("Cloudflare hard block detected")
         return is_blocked
 
     def handle_cloudflare_turnstile(self) -> bool:

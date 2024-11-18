@@ -4,8 +4,6 @@ from typing import ClassVar
 
 from colorama import Fore, Style, init
 
-init()
-
 
 class CustomFormatter(logging.Formatter):
     COLORS: ClassVar[dict[int, str]] = {
@@ -20,6 +18,7 @@ class CustomFormatter(logging.Formatter):
 
     def __init__(self, use_color: bool = True) -> None:
         super().__init__()
+        init()
         self.use_color = use_color
 
     def format(self, record: logging.LogRecord) -> str:
@@ -35,7 +34,7 @@ class CustomFormatter(logging.Formatter):
 
 def setup_logging(
     level: int,
-    log_path: str,
+    log_path: str | None = None,
     logger_name: str | None = None,
     archive: bool = True,
 ) -> logging.Logger:
@@ -63,7 +62,7 @@ def setup_logging(
     logging.root.addHandler(console_handler)
 
     # File handler
-    if archive:
+    if archive and log_path:
         log_dir = os.path.dirname(log_path)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
