@@ -1,6 +1,8 @@
 # V2PH Downloader
 微圖坊下載器
 
+[English](https://github.com/ZhenShuo2021/V2PH-Downloader/blob/main/README.en.md)
+
 ## 特色
 📦 開箱即用：不用下載額外依賴   
 🌐 跨平台：全平台支援    
@@ -70,7 +72,7 @@ Cookies 登入比帳號密碼更容易成功。
 使用方式是用擴充套件（如 [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm)）導出 cookies，建議選擇 Netscape 格式，並且在帳號管理工具中輸入導出的 cookie 文件位置。
 
 > [!NOTE]   
-導出的 Cookies 必須包含 frontend-rmt/frontend-rmu 項目。
+> 導出的 Cookies 必須包含 frontend-rmt/frontend-rmu 項目。
 
 > [!NOTE]   
 > Cookies 為機密資訊，請選擇選擇[下載數量高](https://news.cnyes.com/news/id/5584471)的擴充功能套件，並且導出完成後建議將套件移除或限制存取。   
