@@ -50,7 +50,7 @@ class DrissionBot(BaseBot):
         self.page.set.scroll.smooth(on_off=True)
         self.page.set.scroll.wait_complete(on_off=True)
 
-        self.scroll = DriScroll(self.page, self.base_config, self.logger)
+        self.scroller = DriScroll(self.page, self.base_config, self.logger)
 
     def close_driver(self) -> None:
         if self.close_browser:
@@ -76,7 +76,7 @@ class DrissionBot(BaseBot):
         """
 
         # page_sleep_time: tuple[int, int] = (20, 40) if fast_scroll else (5, 15)
-        scroll_down = self.page.scroll.to_bottom if fast_scroll else self.scroll.scroll_to_bottom
+        scroll_down = self.page.scroll.to_bottom if fast_scroll else self.scroller.scroll_to_bottom
 
         for attempt in range(max_retry):
             try:

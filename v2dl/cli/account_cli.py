@@ -66,9 +66,9 @@ class AccountManagerCLI:
         self.logger = logging.getLogger(__package_name__)
         self.logger.setLevel(logging.INFO)
         self.strings = UIStrings()
-        self.km = KeyManager(self.logger, encrypt_config)
-        self.am = AccountManager(self.logger, self.km)
-        key_pair = self.km.load_keys()
+        self.key_manager = KeyManager(self.logger, encrypt_config)
+        self.account_manager = AccountManager(self.logger, self.key_manager)
+        key_pair = self.key_manager.load_keys()
         self.private_key, self.public_key = key_pair.private_key, key_pair.public_key
 
     def clean_terminal(self) -> None:
@@ -101,13 +101,13 @@ class AccountManagerCLI:
             return
         password = self.get_pass(self.strings.prompt_password)
         cookies = input(self.strings.prompt_cookies)
-        self.am.create(username, password, cookies, self.public_key)
+        self.account_manager.create(username, password, cookies, self.public_key)
 
     def read_account(self) -> None:
         self.clean_terminal()
         print(self.strings.menu_read)
         username = input(self.strings.prompt_username)
-        account = self.am.read(username)
+        account = self.account_manager.read(username)
         if account:
             ordered_dict = OrderedDict()
             ordered_dict["username"] = username
@@ -126,20 +126,20 @@ class AccountManagerCLI:
         print(self.strings.menu_update)
         old_username = input(self.strings.prompt_old_username)
         password = self.get_pass(self.strings.prompt_password)
-        if not self.am.verify_password(old_username, password, self.private_key):
+        if not self.account_manager.verify_password(old_username, password, self.private_key):
             return
         new_username = input(self.strings.prompt_new_username)
         password = self.get_pass(self.strings.prompt_new_password)
         cookies = input(self.strings.prompt_cookies)
-        self.am.edit(self.public_key, old_username, new_username, password, cookies)
+        self.account_manager.edit(self.public_key, old_username, new_username, password, cookies)
 
     def delete_account(self) -> None:
         self.clean_terminal()
         print(self.strings.menu_delete)
         username = input(self.strings.prompt_username)
-        if username in self.am.accounts:
+        if username in self.account_manager.accounts:
             password = self.get_pass(self.strings.prompt_password)
-            if not self.am.verify_password(username, password, self.private_key):
+            if not self.account_manager.verify_password(username, password, self.private_key):
                 return
 
             confirm_delete = questionary.select(
@@ -151,7 +151,7 @@ class AccountManagerCLI:
             ).ask()
 
             if confirm_delete == self.strings.confirm_yes:
-                self.am.delete(username)
+                self.account_manager.delete(username)
             else:
                 print(self.strings.msg_operation_canceled)
         else:
@@ -161,17 +161,17 @@ class AccountManagerCLI:
         self.clean_terminal()
         print(self.strings.menu_password)
         username = input(self.strings.prompt_username)
-        account = self.am.read(username)
+        account = self.account_manager.read(username)
         if account:
             password = self.get_pass(self.strings.prompt_password_test)
-            self.am.verify_password(username, password, self.private_key)
+            self.account_manager.verify_password(username, password, self.private_key)
         else:
             print(self.strings.msg_account_not_found)
 
     def list_accounts(self) -> None:
         self.clean_terminal()
         print(self.strings.menu_list)
-        accounts = self.am.accounts
+        accounts = self.account_manager.accounts
         if accounts:
             for username, info in accounts.items():
                 print(

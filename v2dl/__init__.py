@@ -78,18 +78,18 @@ def create_runtime_config(
 
 def main() -> int:
     args = cli.parse_arguments()
-    app_config = common.BaseConfigManager(common.DEFAULT_CONFIG).load()
-    process_input(args, app_config)
+    base_config = common.BaseConfigManager(common.DEFAULT_CONFIG).load()
+    process_input(args, base_config)
 
     logger = common.setup_logging(
         args.log_level,
-        log_path=app_config.paths.system_log,
+        log_path=base_config.paths.system_log,
         logger_name=version.__package_name__,
     )
-    runtime_config = create_runtime_config(args, app_config, logger, args.log_level)
+    runtime_config = create_runtime_config(args, base_config, logger, args.log_level)
 
-    web_bot_ = web_bot.get_bot(runtime_config, app_config)
-    scraper = core.ScrapeManager(runtime_config, app_config, web_bot_)
+    web_bot_ = web_bot.get_bot(runtime_config, base_config)
+    scraper = core.ScrapeManager(runtime_config, base_config, web_bot_)
     scraper.start_scraping()
 
     return 0
