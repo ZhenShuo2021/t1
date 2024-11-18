@@ -5,8 +5,10 @@
 📦 開箱即用：不用下載額外依賴   
 🌐 跨平台：全平台支援    
 🔄 雙引擎：支援 DrissionPage 和 Selenium 兩種自動化選項   
-🛠️ 方便：支援多帳號自動登入自動切換   
-🔑 安全：使用和 [Psono](https://psono.com/zh-Hant/security) 一樣的後端 PyNaCL 
+🛠️ 方便：支援多帳號自動登入自動切換，支援 cookies/帳號密碼登入兩種方式   
+⚡️ 快速：採用非同步事件迴圈的高效下載    
+🧩 自訂：提供多種自定義參數選項   
+🔑 安全：使用和 [Psono](https://psono.com/zh-Hant/security) 一樣的後端 PyNaCL   
 
 
 ## 安裝
@@ -62,6 +64,17 @@ v2dl -i "/path/to/urls.txt"
 - Windows: `C:\Users\xxx\AppData\v2dl`
 - Linux, macOS: `/Users/xxx/.config/v2dl`
 
+### Cookies
+Cookies 登入比帳號密碼更容易成功。
+
+使用方式是用擴充套件（如 [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm)）導出 cookies，建議選擇 Netscape 格式，並且在帳號管理工具中輸入導出的 cookie 文件位置。
+
+> [!NOTE]   
+導出的 Cookies 必須包含 frontend-rmt/frontend-rmu 項目。
+
+> [!NOTE]   
+> Cookies 為機密資訊，請選擇選擇[下載數量高](https://news.cnyes.com/news/id/5584471)的擴充功能套件，並且導出完成後建議將套件移除或限制存取。   
+
 ### 參數
 - url: 下載目標的網址。
 - -i: 下載目標的 URL 列表文字文件，每行一個 URL。
@@ -94,6 +107,7 @@ v2dl -i "/path/to/urls.txt"
 ```py
 import v2dl
 import logging
+from collections import namedtuple
 
 your_custom_config = {
     "download": {
@@ -118,34 +132,19 @@ your_custom_config = {
     },
 }
 
+your_named_tuple = namedtuple("url", "input_file", "bot_type", ...)
+args = your_named_tuple(url="http://v2ph.com/...", input_file="txt_file", bot_type="drission", ...)
+
 # Initialize
 log_level = logging.INFO
-logger = logging.getLogger(__name__)
-config_manager = v2dl.ConfigManager(your_custom_config)
-app_config = config_manager.load()
-download_service = v2dl.ThreadingService(logger)
+logger = v2dl.common.setup_logging(logging.INFO, log_path=app_config.paths.system_log)
 
-runtime_config = RuntimeConfig(
-    url=args.url,
-    input_file=args.input_file,
-    bot_type=args.bot_type,
-    chrome_args=args.chrome_args,
-    user_agent=args.user_agent,
-    use_chrome_default_profile=args.use_default_chrome_profile,
-    terminate=args.terminate,
-    download_service=download_service,
-    dry_run=args.dry_run,
-    logger=logger,
-    log_level=log_level,
-    no_skip=args.no_skip,
-)
+app_config = v2dl.common.BaseConfigManager(your_custom_config)
+runtime_config = create_runtime_config(args, app_config, logger, log_level)
 
-# (Optional) setup logging format
-v2dl.setup_logging(runtime_config.log_level, log_path=app_config.paths.system_log)
-
-# Instantiate and start scraping
-web_bot = v2dl.get_bot(runtime_config, app_config)
-scraper = v2dl.ScrapeManager(runtime_config, app_config, web_bot)
+# Start scraping
+web_bot_ = v2dl.web_bot.get_bot(runtime_config, app_config)
+scraper = v2dl.core.ScrapeManager(runtime_config, app_config, web_bot_)
 scraper.start_scraping()
 ```
 
