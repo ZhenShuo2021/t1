@@ -1,101 +1,86 @@
 import os
 import shutil
 import logging
+from types import SimpleNamespace
 
 import pytest
 
-from v2dl.common import BaseConfigManager, RuntimeConfig, setup_logging
-from v2dl.common.const import DEFAULT_CONFIG, HEADERS
+from v2dl import create_runtime_config
+from v2dl.common import BaseConfigManager, setup_logging
+from v2dl.common._types import BaseConfig, RuntimeConfig
+from v2dl.common.const import DEFAULT_CONFIG
 from v2dl.core import ScrapeHandler
-from v2dl.utils import ImageDownloadAPI, ServiceType, TaskServiceFactory
+from v2dl.utils import ServiceType
 from v2dl.web_bot import get_bot
-
-os.environ["V2PH_USERNAME"] = "naf02905@inohm.com"  # temp account for testing
-os.environ["V2PH_PASSWORD"] = "VFc8v/Mqny"  # temp account for testing
-
-TEST_URL = "https://www.v2ph.com/album/Weekly-Big-Comic-Spirits-2016-No22-23"
-# TEST_URL = "https://www.v2ph.com/album/amem784a.html"
-BOT = "drission"
 
 
 @pytest.fixture
-def setup_test_env(tmp_path, request):
-    def setup_env(service_type):
-        test_url = TEST_URL
-        bot_type = BOT
-        dry_run = False
-        terminate = True
-        log_level = logging.ERROR
+def base_config(tmp_path) -> BaseConfig:
+    base_config = BaseConfigManager(DEFAULT_CONFIG).load()
+    base_config.paths.download_log = tmp_path / "download.log"
+    base_config.download.download_dir = tmp_path / "Downloads"
+    base_config.download.rate_limit = 1000
+    base_config.download.min_scroll_length *= 2
+    base_config.download.max_scroll_length = base_config.download.max_scroll_length * 16 + 1
+    return base_config
 
-        logger = logging.getLogger("test_logger")
-        base_config = BaseConfigManager(DEFAULT_CONFIG).load()
-        base_config.paths.download_log = tmp_path / "download.log"
-        base_config.download.download_dir = tmp_path / "Downloads"
-        base_config.download.rate_limit = 1000
-        base_config.download.min_scroll_length = base_config.download.min_scroll_length * 2
-        base_config.download.max_scroll_length = base_config.download.max_scroll_length * 16 + 1
 
-        download_service = TaskServiceFactory.create(service_type, logger, max_workers=3)
+@pytest.fixture
+def setup_test_env(tmp_path, base_config):
+    def setup_env(service_type) -> tuple[ScrapeHandler, BaseConfig, RuntimeConfig]:
+        log_level = logging.INFO
+        logger = setup_logging(log_level, logger_name="pytest", archive=False)
 
-        _download_function = ImageDownloadAPI(
-            HEADERS,
-            base_config.download.rate_limit,
-            True,
-            logger,
-        )
-
-        download_function = (
-            _download_function.download_async
-            if service_type == ServiceType.ASYNC
-            else _download_function.download
-        )
-
-        runtime_config = RuntimeConfig(
-            url=test_url,
+        args = SimpleNamespace(
+            url="https://www.v2ph.com/album/Weekly-Big-Comic-Spirits-2016-No22-23",
             input_file="",
-            bot_type=bot_type,
+            bot_type="drission",
             chrome_args=[],
             user_agent=None,
-            terminate=terminate,
-            download_service=download_service,
-            download_function=download_function,
-            dry_run=dry_run,
-            logger=logger,
-            log_level=log_level,
+            terminate=True,
+            dry_run=False,
+            concurrency=3,
+            no_skip=True,
+            use_default_chrome_profile=False,
         )
 
-        setup_logging(log_level, log_path=base_config.paths.system_log)
+        runtime_config = create_runtime_config(
+            args=args,  # type: ignore
+            base_config=base_config,
+            logger=logger,
+            log_level=log_level,
+            service_type=service_type,
+        )
+
         web_bot = get_bot(runtime_config, base_config)
         scraper = ScrapeHandler(runtime_config, base_config, web_bot)
 
         return scraper, base_config, runtime_config
 
-    yield setup_env
-
-    def cleanup():
+    try:
+        yield setup_env
+    finally:
         download_dir = tmp_path / "Downloads"
         download_log = tmp_path / "download.log"
-
         if download_dir.exists():
             shutil.rmtree(download_dir)
-
         if download_log.exists():
             download_log.unlink()
-
-    request.addfinalizer(cleanup)
 
 
 @pytest.mark.parametrize("service_type", [ServiceType.ASYNC, ServiceType.THREADING])
 def test_download_sync(setup_test_env, service_type):
+    scraper: ScrapeHandler
+    base_config: BaseConfig
+    runtime_config: RuntimeConfig
+    valid_extensions = (".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG")
+
     setup_env = setup_test_env
     scraper, base_config, runtime_config = setup_env(service_type)
     test_download_dir = base_config.download.download_dir
-    valid_extensions = (".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG")
-
-    # runtime_config.logger.critical(runtime_config.download_function.__name__)
 
     single_page_result, _ = scraper._scrape_single_page(
-        TEST_URL,
+        runtime_config.url,
         1,
         scraper.strategies["album_image"],
         "album_image",
