@@ -1,8 +1,5 @@
-import sys
 import logging
 import argparse
-
-from ..version import __version__
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -66,10 +63,6 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     args = parser.parse_args()
-
-    if args.version:
-        print(f"{__version__}")  # noqa: T201
-        sys.exit(0)
 
     if args.quiet:
         log_level = logging.ERROR

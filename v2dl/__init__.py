@@ -1,5 +1,7 @@
 import sys
 
+from .common._types import BaseConfig
+
 if sys.version_info < (3, 10):
     raise ImportError(
         "You are using an unsupported version of Python. Only Python versions 3.10 and above are supported by v2dl",
@@ -14,9 +16,15 @@ from . import cli, common, core, utils, version, web_bot
 __all__ = ["cli", "common", "core", "utils", "version", "web_bot", "version"]
 
 
-def process_input(args: NamespaceT, base_config: common.BaseConfig) -> None:
+def process_input(args: NamespaceT) -> BaseConfig:
+    if args.version:
+        print(version.__version__)  # noqa
+        sys.exit(0)
+
     if args.input_file:
         utils.PathUtil.check_input_file(args.input_file)
+
+    base_config = common.BaseConfigManager(common.DEFAULT_CONFIG).load()
 
     if args.account:
         cli.cli(base_config.encryption)
@@ -31,7 +39,7 @@ def process_input(args: NamespaceT, base_config: common.BaseConfig) -> None:
     level = logging.DEBUG if args.log_level == logging.DEBUG else logging.WARNING
     logging.getLogger("httpx").setLevel(level)
     logging.getLogger("httpcore").setLevel(level)
-    return
+    return base_config
 
 
 def create_runtime_config(
@@ -84,8 +92,7 @@ def create_runtime_config(
 
 def main() -> int:
     args = cli.parse_arguments()
-    base_config = common.BaseConfigManager(common.DEFAULT_CONFIG).load()
-    process_input(args, base_config)
+    base_config = process_input(args)
 
     logger = common.setup_logging(
         args.log_level,
