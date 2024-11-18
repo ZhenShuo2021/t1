@@ -2,7 +2,7 @@ import sys
 import time
 import random
 from logging import Logger
-from subprocess import run
+from subprocess import Popen
 from typing import TYPE_CHECKING, Any
 
 from selenium import webdriver
@@ -55,7 +55,7 @@ class SeleniumBot(BaseBot):
         options = Options()
 
         chrome_path = [self.base_config.chrome.exec_path]
-        # "or" returns the first True element
+        # commands for running subprocess
         subprocess_cmd = chrome_path + (self.runtime_config.chrome_args or DEFAULT_BOT_OPT)
         subprocess_cmd = [*subprocess_cmd, self.runtime_config.user_agent or SELENIUM_AGENT]
 
@@ -63,24 +63,22 @@ class SeleniumBot(BaseBot):
             user_data_dir = self.prepare_chrome_profile()
             subprocess_cmd.append(f"--user-data-dir={user_data_dir}")
 
-        self.chrome_process = run(subprocess_cmd, check=True)
+        for arg in subprocess_cmd:
+            options.add_argument(arg)
 
+        # additional args for webdriver.Chrome to takeover the control of created browser
         options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
         try:
+            self.chrome_process = Popen(subprocess_cmd)  # subprocess.run fails
             self.driver = webdriver.Chrome(service=Service(), options=options)
         except Exception as e:
             self.logger.error("Unable to start Selenium WebDriver: %s", e)
             sys.exit("Unable to start Selenium WebDriver")
 
-        # width = random.randint(1024, 1920)
-        # height = random.randint(768, 1080)
-        # self.driver.set_window_size(1920, 1080)
-
     def close_driver(self) -> None:
-        pass
-        # if self.close_browser:
-        #     self.driver.quit()
-        #     self.chrome_process.terminate()
+        if self.close_browser:
+            self.driver.quit()
+            self.chrome_process.terminate()
 
     def auto_page_scroll(
         self,

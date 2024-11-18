@@ -1,4 +1,6 @@
 # ============== Default User Preference ==============
+import platform
+import subprocess
 from typing import Any
 
 DEFAULT_CONFIG: dict[str, dict[str, Any]] = {
@@ -42,7 +44,32 @@ WORKFLOW_URL_ACTOR = (
 
 
 # For selenium webdriver
-SELENIUM_AGENT = "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.59 Safari/537.36"
+def get_chrome_version(chrome_path: str) -> str:
+    default = "130.0.6723.59"
+    try:
+        result = subprocess.run([chrome_path, "--version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            version_info = result.stdout.strip()
+            return version_info.split()[-1]
+        else:
+            print(f"Retrieving Chrome version failed: {result.stderr.strip()}")  # noqa: T201
+            return default
+    except Exception as e:
+        print(f"Retrieving Chrome version failed: {e}")  # noqa: T201
+        return default
+
+
+USER_OS = platform.system()
+if USER_OS == "Windows":
+    chrome_version = get_chrome_version(DEFAULT_CONFIG["chrome"]["exec_path"]["Windows"])
+elif USER_OS == "Darwin":
+    # MacOS
+    chrome_version = get_chrome_version(DEFAULT_CONFIG["chrome"]["exec_path"]["Darwin"])
+else:
+    chrome_version = get_chrome_version(DEFAULT_CONFIG["chrome"]["exec_path"]["Linux"])
+
+SELENIUM_AGENT = f"user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_version} Safari/537.36"
+
 
 # For requests to download from the v2ph cdn, somehow the fake_useragent is not working.
 HEADERS = {
