@@ -58,7 +58,19 @@ class BaseBot(ABC):
         page_sleep: int = 5,
         fast_scroll: bool = True,
     ) -> str:
-        """Request handling with retries. To be implemented in subclasses."""
+        """Scroll page automatically with retries and Cloudflare challenge handle.
+
+        The main function of this class.
+
+        Args:
+            url (str): Target URL
+            max_retry (int): Maximum number of retry attempts. Defaults to 3
+            page_sleep (int): The sleep time after reaching page bottom
+            fast_scroll (bool): Whether to use fast scroll. Might be blocked by Cloudflare
+
+        Returns:
+            str: Page HTML content or error message
+        """
         raise NotImplementedError("Subclasses must implement automated retry logic.")
 
     def handle_login(self) -> None:

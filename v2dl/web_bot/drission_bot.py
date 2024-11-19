@@ -31,7 +31,6 @@ class DrissionBot(BaseBot):
         self.cloudflare = DriCloudflareHandler(self.page, self.logger)
 
     def init_driver(self) -> None:
-        # subprocess of chrome: Drission terminate chrome anyway
         co = ChromiumOptions()
         if self.runtime_config.chrome_args is not None:
             for conf in self.runtime_config.chrome_args:
@@ -63,19 +62,6 @@ class DrissionBot(BaseBot):
         page_sleep: int = 5,
         fast_scroll: bool = False,
     ) -> str:
-        """Scroll page automatically with retries and Cloudflare challenge handle.
-
-        Args:
-            url (str): Target URL.
-            max_retry (int): Maximum number of retry attempts.
-            page_sleep (int): Sleep time after finishing scrolling each page.
-            fast_scroll (bool): Whether to use fast scrolling behavior.
-
-        Returns:
-            response (str): Page HTML content or error message
-        """
-
-        # page_sleep_time: tuple[int, int] = (20, 40) if fast_scroll else (5, 15)
         scroll_down = self.page.scroll.to_bottom if fast_scroll else self.scroller.scroll_to_bottom
 
         for attempt in range(max_retry):
@@ -90,9 +76,6 @@ class DrissionBot(BaseBot):
                     )
                     break
 
-                # handle challenges
-                # self.page.wait.load_start()
-                # self.page.wait.ele_displayed("xpath://div[@class='album-photo my-2']", timeout=5)
                 if self.cloudflare.handle_simple_block(attempt, max_retry):
                     continue
 
@@ -172,10 +155,6 @@ class DrissionBot(BaseBot):
                     DriBehavior.human_like_type(password_field, self.password)
                     DriBehavior.random_sleep(0.01, 0.5)
 
-                    # Already checked by default
-                    # remember_checkbox = self.page('#remember')
-                    # remember_checkbox.click()
-
                     login_button = self.page(
                         'x://button[@type="submit" and @class="btn btn-primary btn-block"]',
                     )
@@ -220,7 +199,6 @@ class DrissionBot(BaseBot):
         if account is None:
             raise BotError("Unexpected error while reading account '%s'", self.email)
 
-        # import cookies
         cookies_path = account.get("cookies")
         if cookies_path:
             cookies = load_cookies(cookies_path)

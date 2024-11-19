@@ -30,10 +30,7 @@ DEFAULT_BOT_OPT = [
     "--disable-infobars",
     "--disable-extensions",
     "--disable-dev-shm-usage",
-    # "--disable-blink-features",
-    # "--disable-blink-features=AutomationControlled",
     "--start-maximized",
-    # "--ignore-certificate-errors",
 ]
 
 
@@ -90,19 +87,6 @@ class SeleniumBot(BaseBot):
         page_sleep: int = 5,
         fast_scroll: bool = False,
     ) -> str:
-        """Scroll page automatically with retries and Cloudflare challenge handle.
-
-        The main function of this class.
-
-        Args:
-            url (str): Target URL
-            max_retry (int): Maximum number of retry attempts. Defaults to 3
-            page_sleep (int): The sleep time after reaching page bottom
-            fast_scroll (bool): Whether to use fast scroll. Might be blocked by Cloudflare
-
-        Returns:
-            str: Page HTML content or error message
-        """
         response: str = ""
         for attempt in range(max_retry):
             try:
@@ -118,10 +102,6 @@ class SeleniumBot(BaseBot):
 
                 if self.cloudflare.handle_simple_block(attempt, max_retry):
                     continue
-
-                # WebDriverWait(self.driver, 5).until(
-                #     EC.presence_of_element_located((By.CSS_SELECTOR, "div.album-photo.my-2"))
-                # )
 
                 # main business
                 self.handle_login()
@@ -189,24 +169,14 @@ class SeleniumBot(BaseBot):
                     password_field = self.driver.find_element(By.ID, "password")
                     BaseBehavior.random_sleep(0.5, 1)
 
-                    # SelBehavior.human_like_mouse_movement(self.driver, email_field)
                     password_field.send_keys(Keys.SHIFT, Keys.TAB)
                     BaseBehavior.random_sleep(0.5, 1)
                     SelBehavior.human_like_type(email_field, self.email)
                     SelBehavior.random_sleep(0.01, 0.3)
 
-                    # SelBehavior.human_like_mouse_movement(self.driver, password_field)
-                    # SelBehavior.human_like_click(self.driver, email_field)
                     email_field.send_keys(Keys.TAB)
                     SelBehavior.human_like_type(password_field, self.password)
                     SelBehavior.random_sleep(0.01, 0.5)
-
-                    # try:
-                    #     remember_checkbox = self.driver.find_element(By.ID, "remember")
-                    #     if not remember_checkbox.is_selected():
-                    #         SelBehavior.human_like_click(self.driver, remember_checkbox)
-                    # except NoSuchElementException:
-                    #     self.logger.warning("Remember me checkbox not found")
 
                     try:
                         self.cloudflare.handle_cloudflare_recaptcha()
@@ -237,7 +207,7 @@ class SeleniumBot(BaseBot):
 
             except NoSuchElementException as e:
                 self.logger.error("Login form element not found: %s", e)
-                raise  # raise error to break while loop
+                raise
             except TimeoutException as e:
                 self.logger.error("Timeout waiting for element: %s", e)
                 raise
@@ -256,7 +226,6 @@ class SeleniumBot(BaseBot):
         if account is None:
             return False
 
-        # import cookies
         cookies_path = account.get("cookies")
         if cookies_path:
             cookies = load_cookies(cookies_path)

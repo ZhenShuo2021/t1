@@ -143,13 +143,18 @@ class ScrapeHandler:
         strategy: "BaseScraper[Any]",
         scrape_type: ScrapeType,
     ) -> tuple[list[AlbumLink] | list[ImageLinkAndALT], bool]:
-        """
-        Scrape a single page and return its results along with whether to continue scraping.
+        """Scrapes a single page and retrieves results with a flag indicating whether to continue scraping.
+
+        Args:
+            url (str): The URL to scrape.
+            page (int): The page number to scrape.
+            strategy (BaseScraper[Any]): The scraping strategy that defines how to extract data from the page.
+            scrape_type (ScrapeType): The type of content to scrape, either "album" or "album_list".
 
         Returns:
-            tuple: (page_results, should_continue)
-            - page_results: List of scraped links from the current page
-            - should_continue: Boolean indicating whether to continue to next page
+            tuple[list[AlbumLink] | list[ImageLinkAndALT], bool]: A tuple containing:
+            - list[AlbumLink] | list[ImageLinkAndALT]: A list of links or image details extracted from the page.
+            - bool: A flag indicating whether to continue to the next page.
         """
         full_url = LinkParser.add_page_num(url, page)
         html_content = self.web_bot.auto_page_scroll(full_url, page_sleep=0)
@@ -186,7 +191,20 @@ class ScrapeHandler:
         scrape_type: ScrapeType,
         **kwargs: dict[Any, Any],
     ) -> list[Any]:
-        """Scrape pages for links using the appropriate strategy."""
+        """Scrapes pages for links using the specified scraping strategy.
+
+        Args:
+            url (str): The URL to scrape.
+            start_page (int): The starting page number for the scraping process.
+            scrape_type (ScrapeType): The type of content to scrape, either "album" or "album_list".
+            **kwargs (dict[Any, Any]): Additional keyword arguments for custom behavior.
+
+        Returns:
+            list[Any]: A list of results extracted from all scraped pages.
+
+        Raises:
+            KeyError: If the provided scrape_type is not found in the strategies.
+        """
         strategy = self.strategies[scrape_type]
         self.logger.info(
             "Starting to scrape %s links from %s",
