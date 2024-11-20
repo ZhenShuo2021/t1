@@ -1,7 +1,5 @@
 import sys
 
-from .common._types import BaseConfig
-
 if sys.version_info < (3, 10):
     raise ImportError(
         "You are using an unsupported version of Python. Only Python versions 3.10 and above are supported by v2dl",
@@ -16,7 +14,7 @@ from . import cli, common, core, utils, version, web_bot
 __all__ = ["cli", "common", "core", "utils", "version", "web_bot", "version"]
 
 
-def process_input(args: NamespaceT) -> BaseConfig:
+def process_input(args: NamespaceT) -> common._types.BaseConfig:
     if args.version:
         print(version.__version__)  # noqa
         sys.exit(0)
