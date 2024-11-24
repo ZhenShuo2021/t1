@@ -1,39 +1,42 @@
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.poetry]
+[project]
 name = "v2dl"
 version = "0.1.4"
 description = "V2PH downloader"
-authors = ["ZhenShuo2021 <leo01412123@gmail.com>"]
-repository = "https://github.com/ZhenShuo2021/V2PH-Downloader"
-homepage = "https://github.com/ZhenShuo2021/V2PH-Downloader"
-license = "MIT"
+authors = [{ name = "ZhenShuo2021", email = "leo01412123@gmail.com" }]
+urls.repository = "https://github.com/ZhenShuo2021/V2PH-Downloader"
+urls.homepage = "https://github.com/ZhenShuo2021/V2PH-Downloader"
+license = { file = "LICENSE" }
 readme = "README.md"
+requires-python = ">=3.10"
 
-[tool.poetry.dependencies]
-python = "^3.10"
-colorama = "^0.4.6"
-DrissionPage = "^4.1.0.9"
-python-dotenv = "^1.0.1"
-selenium = "^4.25.0"
-lxml = "^5.3.0"
-PyYAML = "^6.0.2"
-pynacl = "^1.5.0"
-questionary = "^2.0.1"
-httpx = "^0.27.2"
-pathvalidate = "^3.2.1"
+dependencies = [
+    "colorama>=0.4.6",
+    "DrissionPage>=4.1.0.9",
+    "python-dotenv>=1.0.1",
+    "selenium>=4.25.0",
+    "lxml>=5.3.0",
+    "PyYAML>=6.0.2",
+    "pynacl>=1.5.0",
+    "questionary>=2.0.1",
+    "httpx>=0.27.2",
+    "pathvalidate>=3.2.1",
+]
 
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.7.1"
-mypy = "^1.13.0"
-pre-commit = "^4.0.0"
-pytest = "^8.3.3"
-tox = "^4.23.0"
-isort = "^5.13.2"
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.7.1",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+    "pytest>=8.3.3",
+    "tox>=4.23.0",
+    "isort>=5.13.2",
+]
 
-[tool.poetry.scripts]
+[project.scripts]
 v2dl = "v2dl:main"
 
 [tool.mypy]
@@ -71,7 +74,7 @@ target-version = "py310"
 docstring-code-format = true
 quote-style = "double"
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "v2dl/cli/account_cli.py" = ["T201"]
 "v2dl/utils/security.py" = ["T201"]
 

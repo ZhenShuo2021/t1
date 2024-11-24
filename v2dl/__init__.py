@@ -11,7 +11,7 @@ from argparse import Namespace as NamespaceT
 
 from . import cli, common, core, utils, version, web_bot
 
-__all__ = ["cli", "common", "core", "utils", "version", "web_bot", "version"]
+__all__ = ["cli", "common", "core", "utils", "version", "version", "web_bot"]
 
 
 def process_input(args: NamespaceT) -> common._types.BaseConfig:
