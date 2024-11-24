@@ -127,8 +127,8 @@ class ThreadingService(BaseTaskService):
 
 
 class AsyncService(BaseTaskService):
-    def __init__(self, logger: Logger, maxsize: int = 5) -> None:
-        self.maxsize = maxsize
+    def __init__(self, logger: Logger, max_workers: int = 5) -> None:
+        self.max_workers = max_workers
         self.logger = logger
         self.is_running = False
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -138,7 +138,7 @@ class AsyncService(BaseTaskService):
         self.task_queue: queue.Queue[Task] = queue.Queue()
         self.results: dict[str, Any] = {}
         self.current_tasks: list[asyncio.Task[Any]] = []
-        self.sem = asyncio.Semaphore(self.maxsize)
+        self.sem = asyncio.Semaphore(self.max_workers)
 
     def start(self) -> None:
         self._check_thread()
@@ -173,7 +173,7 @@ class AsyncService(BaseTaskService):
             if self.task_queue.empty() and not self.current_tasks:
                 break
 
-            while not self.task_queue.empty() and len(self.current_tasks) < self.maxsize:
+            while not self.task_queue.empty() and len(self.current_tasks) < self.max_workers:
                 try:
                     task = self.task_queue.get_nowait()
                     task_obj = asyncio.create_task(self._run_task(task))

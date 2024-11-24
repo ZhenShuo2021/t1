@@ -6,10 +6,19 @@ from lxml import html
 
 
 class LinkParser:
-    """Tool class parses URL."""
+    """Tool class for parsing and modifying URLs."""
 
     @staticmethod
     def parse_input_url(url: str) -> tuple[list[str], int]:
+        """
+        Extracts path segments and the starting page number from a URL.
+
+        Args:
+            url (str): Input URL.
+
+        Returns:
+            tuple[list[str], int]: Path segments and the starting page number.
+        """
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.split("/")
         query_params = parse_qs(parsed_url.query)
@@ -18,6 +27,15 @@ class LinkParser:
 
     @staticmethod
     def parse_html(html_content: str, logger: Logger) -> html.HtmlElement | None:
+        """Parses HTML content into an HTML element.
+
+        Args:
+            html_content (str): HTML content as a string.
+            logger (Logger): Logger for error handling.
+
+        Returns:
+            html.HtmlElement | None: Parsed HTML element or None if parsing fails.
+        """
         if "Failed" in html_content:
             return None
 
@@ -29,7 +47,15 @@ class LinkParser:
 
     @staticmethod
     def get_max_page(tree: html.HtmlElement) -> int:
-        """Parse pagination count."""
+        """
+        Retrieves the maximum page number from a pagination element.
+
+        Args:
+            tree (html.HtmlElement): Parsed HTML tree.
+
+        Returns:
+            int: Maximum page number, default is 1 if none found.
+        """
         page_links = tree.xpath(
             '//li[@class="page-item"]/a[@class="page-link" and string-length(text()) <= 2]/@href',
         )
@@ -50,6 +76,16 @@ class LinkParser:
 
     @staticmethod
     def add_page_num(url: str, page: int) -> str:
+        """
+        Adds or updates the page number in a URL.
+
+        Args:
+            url (str): Original URL.
+            page (int): Page number to add or update.
+
+        Returns:
+            str: Updated URL with the specified page number.
+        """
         parsed_url = urlparse(url)  # 解析 URL
         query_params = parse_qs(parsed_url.query)  # 解析查詢參數
         query_params["page"] = [str(page)]  # 修改頁碼
@@ -68,17 +104,21 @@ class LinkParser:
 
     @staticmethod
     def remove_page_num(url: str) -> str:
-        """remove ?page=d or &page=d from URL."""
-        # Parse the URL
+        """
+        Removes the page parameter from a URL.
+
+        Args:
+            url (str): Original URL.
+
+        Returns:
+            str: URL without the page parameter.
+        """
         parsed_url = urlparse(url)
         query_params = parse_qs(parsed_url.query)
 
-        # Remove the 'page' parameter if it exists
         if "page" in query_params:
             del query_params["page"]
 
-        # Rebuild the query string without 'page'
         new_query = urlencode(query_params, doseq=True)
 
-        # Rebuild the full URL
         return urlunparse(parsed_url._replace(query=new_query))
